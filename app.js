@@ -3376,12 +3376,14 @@ const app = {
 
     updateCategoriesSelects() {
         const cats = Object.keys(this.data.budgets).sort();
+        const exclus = this.data.categoriesEpargne || ['ÉPARGNE'];
+        const catsHorsEpargne = cats.filter(c => !exclus.some(e => c.toUpperCase().includes(e.toUpperCase())));
         const depCat = document.getElementById('dep-cat');
         const analyseCat = document.getElementById('analyse-categorie');
 
         if (depCat) depCat.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
         if (analyseCat) analyseCat.innerHTML = '<option value="toutes">Toutes</option>' +
-            cats.map(c => `<option value="${c}">${c}</option>`).join('');
+            catsHorsEpargne.map(c => `<option value="${c}">${c}</option>`).join('');
 
         const pillsContainer = document.getElementById('dep-pills');
         if (pillsContainer && cats.length > 0) {
@@ -4307,7 +4309,13 @@ const app = {
         }
 
         if (categorie !== 'toutes') {
-            depensesFiltrees = depensesFiltrees.filter(d => d.categorie === categorie);
+            // Double sécurité : si la catégorie choisie est épargne, on vide
+            const estEpargne = exclus.some(e => categorie.toUpperCase().includes(e.toUpperCase()));
+            if (estEpargne) {
+                depensesFiltrees = [];
+            } else {
+                depensesFiltrees = depensesFiltrees.filter(d => d.categorie === categorie);
+            }
         }
 
         const total = depensesFiltrees.reduce((sum, d) => sum + d.montant, 0);
