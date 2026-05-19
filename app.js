@@ -1487,8 +1487,10 @@ const app = {
             container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><div>Sélectionne deux mois différents</div></div>';
             return;
         }
-        const depA = this.data.depenses.filter(d => d.date.startsWith(moisA));
-        const depB = this.data.depenses.filter(d => d.date.startsWith(moisB));
+        const exclus = this.data.categoriesEpargne || ['ÉPARGNE'];
+        const sansEpargne = d => !exclus.some(e => d.categorie.toUpperCase().includes(e.toUpperCase()));
+        const depA = this.data.depenses.filter(d => d.date.startsWith(moisA) && sansEpargne(d));
+        const depB = this.data.depenses.filter(d => d.date.startsWith(moisB) && sansEpargne(d));
         if (depA.length === 0 && depB.length === 0) {
             container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><div>Pas de données sur ces mois</div></div>';
             return;
@@ -4263,7 +4265,10 @@ const app = {
         const periode = document.getElementById('analyse-periode').value;
         const categorie = document.getElementById('analyse-categorie').value;
 
-        let depensesFiltrees = [...this.data.depenses];
+        const exclus = this.data.categoriesEpargne || ['ÉPARGNE'];
+        let depensesFiltrees = this.data.depenses.filter(
+            d => !exclus.some(e => d.categorie.toUpperCase().includes(e.toUpperCase()))
+        );
         const now = new Date();
 
         if (periode === 'mois') {
