@@ -9351,7 +9351,10 @@ const app = {
         const periodeEl = document.getElementById('budget-an-periode');
         const periode = periodeEl ? periodeEl.value : 'mois';
         const now = new Date();
-        let depsFiltrees = this.data.depenses;
+        const exclus = this.data.categoriesEpargne || ['ÉPARGNE'];
+        let depsFiltrees = this.data.depenses.filter(
+            d => !exclus.some(e => d.categorie.toUpperCase().includes(e.toUpperCase()))
+        );
 
         if (periode === 'mois') {
             depsFiltrees = depsFiltrees.filter(d => {
