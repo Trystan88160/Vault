@@ -5190,9 +5190,6 @@ const app = {
     _tabCardsConfig: {
         'dashboard': [
             { id: 'dash-hero',          label: 'Patrimoine Net',          sub: 'Hero — Total & taux épargne' },
-            { id: 'dash-widget',        label: 'Ce mois vs mois dernier', sub: 'Widget comparatif rapide' },
-            { id: 'dash-recap-semaine', label: 'Récap de la semaine',     sub: 'Résumé hebdomadaire' },
-            { id: 'dash-acces',         label: '⚡ Accès Rapide',         sub: 'Boutons de navigation' },
             { id: 'dash-alertes',       label: '🔔 Alertes Intelligentes',sub: 'Anomalies & dépassements' },
             { id: 'dash-evol',          label: 'Évolution Patrimoine',    sub: 'Graphique patrimoine' },
             { id: 'dash-repart',        label: 'Répartition',             sub: 'Donut des actifs' },
@@ -5238,7 +5235,7 @@ const app = {
 
     /* ── Layout par défaut (référence pour reset) ───────────────────────── */
     _defaultLayout: {
-        'dashboard':  [['dash-hero'],['dash-widget'],['dash-recap-semaine'],['dash-acces'],['dash-alertes'],['dash-evol','dash-repart'],['dash-dep-budget'],['dash-heatmap']],
+        'dashboard':  [['dash-hero'],['dash-stats'],['dash-alertes'],['dash-evol','dash-repart'],['dash-dep-budget'],['dash-heatmap']],
         'depenses':   [['dep-pointage'],['dep-revenus','dep-saisie'],['dep-etat-cat'],['dep-comparaison','dep-regle5030','dep-recurrentes'],['dep-analyse'],['dep-historique'],['dep-hist-revenus']],
         'pea':        [['pea-stats'],['pea-saisie'],['pea-graphique'],['pea-historique']],
         'patrimoine': [['pat-stats'],['pat-historique']],

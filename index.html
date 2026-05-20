@@ -240,66 +240,18 @@
   <span id="d-pea-gain" style="display:none"></span>
 </div></div>
 
-<!-- Widget Ce mois vs mois dernier -->
-<div data-card-id="dash-widget" data-tab="dashboard"><div class="card" style="padding:1rem 1.5rem;margin-bottom:1rem">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
-    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
-      <div>
-        <div style="font-size:.62rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary)">Dépenses ce mois</div>
-        <div style="font-family:'Outfit',sans-serif;font-size:1.25rem;font-weight:700;color:var(--text-primary)" id="widget-dep-mois">— €</div>
-      </div>
-      <div id="widget-dep-arrow" style="font-size:1.5rem;line-height:1">→</div>
-      <div>
-        <div style="font-size:.62rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary)">Mois dernier</div>
-        <div style="font-family:'Outfit',sans-serif;font-size:1.25rem;font-weight:700;color:var(--text-primary)" id="widget-dep-prev">— €</div>
-      </div>
-      <div id="widget-dep-delta" style="font-family:'DM Mono',monospace;font-size:.82rem;font-weight:700;padding:.25rem .75rem;border-radius:100px;background:var(--bg-secondary)">—</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
-      <div>
-        <div style="font-size:.62rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary)">PEA</div>
-        <div style="font-family:'Outfit',sans-serif;font-size:1.25rem;font-weight:700" id="widget-pea">—</div>
-      </div>
-      <div>
-        <div style="font-size:.62rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary)">Plus-value</div>
-        <div style="font-family:'DM Mono',monospace;font-size:.9rem;font-weight:700" id="widget-pea-gain">—</div>
-      </div>
-    </div>
-  </div>
-</div>
-</div>
-<div data-card-id="dash-recap-semaine" data-tab="dashboard">
-<div class="card" id="resume-hebdo-card" style="display:none;margin-bottom:1rem;border-left:4px solid var(--accent-primary);position:relative">
-  <button onclick="app.fermerResumeHebdo()" style="position:absolute;top:.85rem;right:.85rem;background:var(--bg-secondary);border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:.85rem;color:var(--text-tertiary);display:flex;align-items:center;justify-content:center;box-shadow:2px 2px 6px var(--shadow-light)">✕</button>
-  <div style="display:flex;align-items:center;gap:.85rem;margin-bottom:1rem">
-    <div style="font-size:1.8rem" id="resume-hebdo-emoji">📬</div>
-    <div>
-      <div style="font-family:'Outfit',sans-serif;font-size:1rem;font-weight:700" id="resume-hebdo-titre">Résumé de la semaine</div>
-      <div style="font-size:.72rem;color:var(--text-tertiary);font-family:DM Mono,monospace" id="resume-hebdo-periode"></div>
-    </div>
-  </div>
-  <div id="resume-hebdo-body" style="display:flex;flex-direction:column;gap:.55rem"></div>
-</div>
-</div>
 
-<!-- Accès rapide -->
-<div data-card-id="dash-acces" data-tab="dashboard"><div class="card" style="padding:1.25rem;margin-bottom:1.5rem">
-  <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:.85rem">⚡ Accès Rapide</div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.6rem">
-    <button class="btn btn-secondary" style="justify-content:flex-start;display:flex;align-items:center;gap:.6rem;padding:.75rem 1rem;border-radius:14px" onclick="app.switchTab('depenses');setTimeout(()=>document.getElementById('dep-montant')?.focus(),100)">
-      <span style="font-size:1.1rem">➕</span><div style="text-align:left"><div style="font-size:.8rem;font-weight:700">Saisir dépense</div><div style="font-size:.65rem;color:var(--text-tertiary)">Action fréquente</div></div>
-    </button>
-    <button class="btn btn-secondary" style="justify-content:flex-start;display:flex;align-items:center;gap:.6rem;padding:.75rem 1rem;border-radius:14px" onclick="app.switchTab('pea');app.actualiserCoursPEA()">
-      <span style="font-size:1.1rem">📡</span><div style="text-align:left"><div style="font-size:.8rem;font-weight:700">Actualiser PEA</div><div style="font-size:.65rem;color:var(--text-tertiary)" id="d-pea-lastupdate">Via Finnhub</div></div>
-    </button>
-    <button class="btn btn-secondary" style="justify-content:flex-start;display:flex;align-items:center;gap:.6rem;padding:.75rem 1rem;border-radius:14px" onclick="app.switchTab('patrimoine')">
-      <span style="font-size:1.1rem">🏦</span><div style="text-align:left"><div style="font-size:.8rem;font-weight:700">Patrimoine</div><div style="font-size:.65rem;color:var(--text-tertiary)">Saisie mensuelle</div></div>
-    </button>
-    <button class="btn btn-secondary" style="justify-content:flex-start;display:flex;align-items:center;gap:.6rem;padding:.75rem 1rem;border-radius:14px" onclick="app.switchTab('objectifs')">
-      <span style="font-size:1.1rem">🎯</span><div style="text-align:left"><div style="font-size:.8rem;font-weight:700">Objectifs</div><div style="font-size:.65rem;color:var(--text-tertiary)" id="d-obj-count">— en cours</div></div>
-    </button>
-  </div>
-</div></div>
+
+<!-- Stubs compat JS (cartes supprimées) -->
+<div style="display:none">
+  <div id="widget-dep-mois"></div><div id="widget-dep-prev"></div>
+  <div id="widget-dep-arrow"></div><div id="widget-dep-delta"></div>
+  <div id="widget-pea"></div><div id="widget-pea-gain"></div>
+  <div id="resume-hebdo-card"></div><div id="resume-hebdo-emoji"></div>
+  <div id="resume-hebdo-titre"></div><div id="resume-hebdo-periode"></div>
+  <div id="resume-hebdo-body"></div>
+  <div id="d-pea-lastupdate"></div><div id="d-obj-count"></div>
+</div>
 
 <!-- 1. Alertes intelligentes -->
 <div data-card-id="dash-alertes" data-tab="dashboard"><div class="card" id="alertes-card" style="padding:0;overflow:hidden">
