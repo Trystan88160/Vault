@@ -233,6 +233,8 @@ const app = {
         localStorage.removeItem('sb_session');
         localStorage.removeItem('suiviFinancier');
         localStorage.removeItem('suiviFinancierTime');
+        localStorage.removeItem('suiviFinancierDirty');
+        localStorage.removeItem('suiviFinancierBackup');
         location.reload();
     },
 
@@ -567,9 +569,10 @@ const app = {
             overlay.addEventListener('mouseup', e => {
                 // Ferme seulement si : clic directement sur l'overlay ET pas de drag depuis l'intérieur
                 if (e.target === overlay && !_bsMouseDownInside) {
-                    const fn = overlay.dataset.bsClose;
-                    if (fn) {
-                        try { eval(fn); } catch(err) { console.warn('bs-close error', err); }
+                    // Format attendu : "app.nomMethode()" — appel direct, sans eval
+                    const m = /^app\.(\w+)\(\)$/.exec(overlay.dataset.bsClose || '');
+                    if (m && typeof app[m[1]] === 'function') {
+                        try { app[m[1]](); } catch(err) { console.warn('bs-close error', err); }
                     }
                 }
             });
@@ -884,61 +887,67 @@ const app = {
     },
 
     async load() {
-        /* Score de complétude d'un jeu de données */
-        const _score = d => !d ? 0 :
-            (d.depenses||[]).length +
-            (d.patrimoine||[]).length +
-            (d.suiviPEA||[]).length +
-            (d.lignesPEA||[]).length +
-            (d.revenus||[]).length +
-            (d.objectifs||[]).length +
-            (d.recurrences||[]).length +
-            (d.notes||[]).length;
-
         let cloudData = null;
         let cloudTime = 0;
+        let cloudOk = false;
         try {
             const rows = await this._sbFetch('GET');
             cloudData = rows?.[0]?.data || null;
             cloudTime = rows?.[0]?.updated_at ? new Date(rows[0].updated_at).getTime() : 0;
+            cloudOk = true;
         } catch(e) {
             console.warn('Supabase indisponible, fallback localStorage:', e.message);
         }
 
         let localData = null;
         let localTime = 0;
+        let localDirty = false;
         try {
             const raw = localStorage.getItem('suiviFinancier');
             if (raw) localData = JSON.parse(raw);
             localTime = parseInt(localStorage.getItem('suiviFinancierTime') || '0');
+            const dirtyFlag = localStorage.getItem('suiviFinancierDirty');
+            /* Flag absent (ancienne version) → on se fie uniquement aux dates */
+            localDirty = dirtyFlag === null ? localTime > cloudTime : dirtyFlag === '1';
         } catch(e) {}
 
-        const cloudScore = _score(cloudData);
-        const localScore = _score(localData);
-
-        /* Prendre la source la plus complète.
-           En cas d'égalité, prendre la plus récente. */
+        /* Règle : la version la plus récente gagne.
+           Le local ne l'emporte que s'il contient des modifications jamais
+           envoyées au cloud (sync échouée / hors ligne) ET plus récentes que le cloud.
+           Compter les éléments ne marche pas : une suppression ferait « perdre »
+           la version à jour face à une copie périmée. */
         let best = null;
-        if (cloudScore > 0 || localScore > 0) {
-            if (cloudScore > localScore) {
-                best = cloudData;
-            } else if (localScore > cloudScore) {
-                best = localData;
-            } else {
-                /* Scores égaux → plus récent */
-                best = (cloudTime >= localTime) ? cloudData : localData;
+        let pushLocal = false;
+        if (!cloudOk) {
+            best = localData;                       // hors ligne : on travaille en local
+        } else if (!cloudData) {
+            best = localData;                       // rien dans le cloud : on remonte le local
+            pushLocal = !!localData;
+        } else if (localData && localDirty && localTime > cloudTime) {
+            best = localData;                       // modifs locales non synchronisées
+            pushLocal = true;
+        } else {
+            best = cloudData;
+            if (localData && localDirty) {
+                /* Modifs locales non synchronisées mais plus anciennes que le cloud :
+                   on les écrase, en gardant une copie de secours */
+                try {
+                    localStorage.setItem('suiviFinancierBackup', JSON.stringify({ time: localTime, data: localData }));
+                } catch(e) {}
+                console.warn('Modifications locales non synchronisées remplacées par une version cloud plus récente (copie dans suiviFinancierBackup)');
             }
         }
 
         if (best) {
             this._applyLoaded(best);
-            /* Resynchroniser localStorage et Supabase sur la meilleure source */
-            try { localStorage.setItem('suiviFinancier', JSON.stringify(best)); } catch(e) {}
-            if (best === localData && cloudScore < localScore) {
-                /* localStorage plus complet → remonter vers Supabase */
+            if (best === cloudData) {
+                try {
+                    localStorage.setItem('suiviFinancier', JSON.stringify(best));
+                    localStorage.setItem('suiviFinancierTime', cloudTime.toString());
+                    localStorage.setItem('suiviFinancierDirty', '0');
+                } catch(e) {}
+            } else if (pushLocal) {
                 this._syncToSupabase();
-            } else if (best === cloudData) {
-                localStorage.setItem('suiviFinancierTime', cloudTime.toString());
             }
         }
     },
@@ -989,6 +998,7 @@ const app = {
             const now = Date.now();
             localStorage.setItem('suiviFinancier', JSON.stringify(this.data));
             localStorage.setItem('suiviFinancierTime', now.toString());
+            localStorage.setItem('suiviFinancierDirty', '1');
             this._lastChange = now;
             this._lastSyncOk = false;
         } catch(e) { console.error('localStorage save error:', e); }
@@ -997,13 +1007,18 @@ const app = {
     },
 
     async _syncToSupabase() {
+        if (!this._auth.user?.id) return;
+        /* Un seul envoi à la fois : sinon une requête plus ancienne peut
+           arriver après une plus récente et écraser le cloud */
+        if (this._syncInFlight) { this._syncPending = true; return; }
+        this._syncInFlight = true;
+        this._syncPending = false;
         const dot   = document.getElementById('sync-dot');
         const label = document.getElementById('sync-label');
         if (dot)   dot.style.background = 'var(--warning)';
         if (label) label.textContent    = 'sync…';
+        const savedTime = localStorage.getItem('suiviFinancierTime');
         try {
-
-            if (!this._auth.user?.id) return;
             await this._sbFetch('UPSERT', {
                 user_id: this._auth.user.id,
                 data: this.data,
@@ -1011,7 +1026,12 @@ const app = {
             });
             if (dot)   dot.style.background = 'var(--success)';
             if (label) label.textContent    = 'sauvé ✓';
-            this._lastSyncOk = true;
+            this._lastSyncOk = !this._syncPending;
+            /* Ne marquer « propre » que si rien n'a été modifié pendant l'envoi */
+            try {
+                if (localStorage.getItem('suiviFinancierTime') === savedTime)
+                    localStorage.setItem('suiviFinancierDirty', '0');
+            } catch(e) {}
             setTimeout(() => {
                 if (dot)   dot.style.background = 'var(--text-tertiary)';
                 if (label) label.textContent    = 'cloud';
@@ -1023,6 +1043,9 @@ const app = {
             console.error('Supabase sync error:', e.message);
 
             this.notify(`☁️ Sync échouée : ${e.message}`, 'error');
+        } finally {
+            this._syncInFlight = false;
+            if (this._syncPending) this._syncToSupabase();
         }
     },
 
@@ -2029,10 +2052,10 @@ const app = {
             ${obj.length > 0 ? `<div style="margin-bottom:1.5rem">
                 <div style="font-family:DM Mono,monospace;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:#7891ab;margin-bottom:0.75rem">Objectifs en cours</div>
                 ${obj.map(o => { const pct = Math.min(100,(o.actuel/o.cible)*100).toFixed(0); return `<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem">
-                    <span style="font-size:1.1rem">${o.emoji}</span>
+                    <span style="font-size:1.1rem">${app._esc(o.emoji)}</span>
                     <div style="flex:1">
                         <div style="display:flex;justify-content:space-between;margin-bottom:0.2rem">
-                            <span style="font-size:0.85rem">${o.nom}</span>
+                            <span style="font-size:0.85rem">${app._esc(o.nom)}</span>
                             <span style="font-family:DM Mono,monospace;font-size:0.7rem;color:#4a6785">${pct}%</span>
                         </div>
                         <div style="height:5px;background:#e8edf2;border-radius:100px;overflow:hidden">
@@ -2455,7 +2478,7 @@ const app = {
             <div style="display:flex;justify-content:space-between;align-items:center;padding:.3rem 0;border-bottom:1px solid var(--border-color)">
                 <div>
                     <span style="font-size:.72rem;font-weight:600;color:var(--text-primary)">${r.type || '—'}</span>
-                    ${r.note ? `<span style="font-size:.67rem;color:var(--text-tertiary);margin-left:.4rem">${r.note}</span>` : ''}
+                    ${r.note ? `<span style="font-size:.67rem;color:var(--text-tertiary);margin-left:.4rem">${app._esc(r.note)}</span>` : ''}
                     <div style="font-size:.63rem;color:var(--text-tertiary);font-family:'DM Mono',monospace">${r.date}</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:.5rem">
@@ -2692,7 +2715,7 @@ const app = {
         if (compteSelect) {
             const comptes = this.data.comptesPointage || [];
             compteSelect.innerHTML = '<option value="">💳 Compte — (optionnel)</option>' +
-                comptes.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+                comptes.map(c => `<option value="${c.id}">${app._esc(c.nom)}</option>`).join('');
         }
         document.getElementById('bs-import-overlay').classList.add('open');
         document.body.style.overflow = 'hidden';
@@ -2758,7 +2781,7 @@ const app = {
         const hasComptes = (this.data.comptesPointage || []).length > 0;
         const comptesSingle = (this.data.comptesPointage || []).length === 1;
         const mostUsedCompteId = this._getMostUsedCompteId();
-        const comptesOpts = (this.data.comptesPointage || []).map(c => `<option value="${c.id}" ${String(c.id) === mostUsedCompteId ? 'selected' : ''}>${c.nom}</option>`).join('');
+        const comptesOpts = (this.data.comptesPointage || []).map(c => `<option value="${c.id}" ${String(c.id) === mostUsedCompteId ? 'selected' : ''}>${app._esc(c.nom)}</option>`).join('');
         const compteSelectHtml = hasComptes
             ? `<div style="margin-top:.35rem"><select class="bs-input" id="bs-dep-compte-${id}" style="width:100%;font-size:.75rem">${comptesSingle ? '' : '<option value="">— Aucun compte —</option>'}${comptesOpts}</select></div>`
             : '';
@@ -3840,9 +3863,9 @@ const app = {
                             : `<button class="budget-tx-action-btn" onclick="app.modifierNote('depense','${i.id}')" title="Modifier">✏️</button>
                                <button class="budget-tx-action-btn" onclick="app.supprimerDepense('${i.id}')" title="Supprimer">✕</button>`;
                         return `<div class="budget-tx-card budget-tx-card--actions">
-                            <div class="budget-tx-icon" style="background:${iconBg}">${i.emoji}</div>
+                            <div class="budget-tx-icon" style="background:${iconBg}">${app._esc(i.emoji)}</div>
                             <div class="budget-tx-info">
-                                <div class="budget-tx-name">${i.label}</div>
+                                <div class="budget-tx-name">${app._esc(i.label)}</div>
                                 <div class="budget-tx-meta">${i.metaClean}</div>
                             </div>
                             <div class="budget-tx-date">${dateShort}</div>
@@ -3896,10 +3919,10 @@ const app = {
         document.getElementById('edit-dep-modal')?.remove();
 
         const cats = Object.keys(this.data.budgets).sort();
-        const catsOpts = cats.map(c => `<option value="${c}" ${c === dep.categorie ? 'selected' : ''}>${c}</option>`).join('');
+        const catsOpts = cats.map(c => `<option value="${app._esc(c)}" ${c === dep.categorie ? 'selected' : ''}>${app._esc(c)}</option>`).join('');
         const hasComptes = (this.data.comptesPointage || []).length > 0;
         const comptesOpts = (this.data.comptesPointage || []).map(c =>
-            `<option value="${c.id}" ${String(c.id) === String(dep.compteId) ? 'selected' : ''}>${c.nom}</option>`
+            `<option value="${c.id}" ${String(c.id) === String(dep.compteId) ? 'selected' : ''}>${app._esc(c.nom)}</option>`
         ).join('');
         const compteHtml = hasComptes
             ? `<div class="form-group">
@@ -4057,7 +4080,7 @@ const app = {
                 const mostUsed = this._getMostUsedCompteId();
                 const emptyOpt = comptes.length === 1 ? '' : '<option value="">— Aucun compte —</option>';
                 compteSelect.innerHTML = emptyOpt +
-                    comptes.map(c => `<option value="${c.id}" ${String(c.id) === mostUsed ? 'selected' : ''}>${c.nom}</option>`).join('');
+                    comptes.map(c => `<option value="${c.id}" ${String(c.id) === mostUsed ? 'selected' : ''}>${app._esc(c.nom)}</option>`).join('');
                 compteGroup.style.display = '';
             } else {
                 compteGroup.style.display = 'none';
@@ -4166,7 +4189,7 @@ const app = {
             <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:var(--bg-secondary);border-radius:10px;margin-bottom:.35rem">
                 <div>
                     <span style="font-size:.7rem;background:rgba(0,200,83,.12);color:var(--success);padding:.15rem .5rem;border-radius:20px;font-weight:600;margin-right:.5rem">${r.type}</span>
-                    <span style="font-size:.78rem;color:var(--text-secondary)">${r.note || ''}</span>
+                    <span style="font-size:.78rem;color:var(--text-secondary)">${app._esc(r.note || '')}</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:.75rem">
                     <span style="font-family:'Outfit',sans-serif;font-size:.95rem;font-weight:700;color:var(--success)">+${this.formatCurrency(r.montant)}</span>
@@ -4386,7 +4409,7 @@ const app = {
                                     <td style="font-weight:700;background:linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-end));-webkit-background-clip:text;-webkit-text-fill-color:transparent">
                                         ${this.formatCurrency(d.montant)}
                                     </td>
-                                    <td style="color:var(--text-secondary)">${d.note || '—'}</td>
+                                    <td style="color:var(--text-secondary)">${app._esc(d.note || '—')}</td>
                                     <td><button class="btn btn-small btn-secondary" onclick="app.supprimerDepense('${d.id}')">✕</button></td>
                                 </tr>`).join('')}
                             </tbody>
@@ -4410,7 +4433,7 @@ const app = {
                     const txRows = txCat.map(d => `
                         <div style="display:flex;align-items:center;gap:1rem;padding:0.5rem 0.75rem;border-radius:8px;background:var(--bg-secondary);margin-bottom:4px">
                             <span style="font-family:DM Mono,monospace;font-size:0.7rem;color:var(--text-tertiary);min-width:80px">${new Date(d.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</span>
-                            <span style="font-size:0.82rem;flex:1;color:var(--text-secondary)">${d.note || '—'}</span>
+                            <span style="font-size:0.82rem;flex:1;color:var(--text-secondary)">${app._esc(d.note || '—')}</span>
                             <span style="font-family:DM Mono,monospace;font-size:0.82rem;font-weight:600;color:var(--text-primary)">${this.formatCurrency(d.montant)}</span>
                             <button onclick="app.modifierNote('depense', '${d.id}')" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:0.82rem;padding:0 0.25rem" title="Modifier">✏️</button>
                             <button onclick="app.supprimerDepense('${d.id}')" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:0.75rem;padding:0 0.25rem" title="Supprimer">✕</button>
@@ -4537,7 +4560,7 @@ const app = {
                     <div class="mdc-note" style="color:${s.gainPerte >= 0 ? 'var(--success)' : 'var(--danger)'};font-weight:600">
                         ${s.gainPerte >= 0 ? '+' : ''}${this.formatCurrency(s.gainPerte)} (${s.performance}%) · Investi : ${this.formatCurrency(s.investi)}
                     </div>
-                    ${s.note ? `<div class="mdc-note">${s.note}</div>` : ''}
+                    ${s.note ? `<div class="mdc-note">${app._esc(s.note)}</div>` : ''}
                     <div class="mdc-bottom">
                         <span class="mdc-date">${new Date(s.date).toLocaleDateString('fr-FR')}</span>
                         <div class="mdc-actions">
@@ -4557,7 +4580,7 @@ const app = {
                         ${s.gainPerte >= 0 ? '+' : ''}${this.formatCurrency(s.gainPerte)} (${s.performance}%)
                     </td>
                     <td>
-                        ${s.note || '—'}
+                        ${app._esc(s.note || '—')}
                         <button class="btn btn-small btn-secondary" onclick="app.modifierNote('pea', '${s.id}')" style="margin-left:0.5rem" title="Modifier la note">✏️</button>
                     </td>
                     <td><button class="btn btn-small btn-secondary" onclick="app.supprimerPEA('${s.id}')">✕</button></td>
@@ -6609,7 +6632,7 @@ const app = {
         const select = document.getElementById('select-scenario');
         if (!select) return;
         select.innerHTML = '<option value="">-- Nouveau scénario --</option>' +
-            this.data.scenarios.map(s => `<option value="${s.id}">${s.nom}</option>`).join('');
+            this.data.scenarios.map(s => `<option value="${s.id}">${app._esc(s.nom)}</option>`).join('');
     },
 
     switchVuePrevision(vue) {
@@ -6928,7 +6951,7 @@ const app = {
         const select = document.getElementById('select-modele');
         if (!select) return;
         select.innerHTML = '<option value="">-- Nouveau modèle --</option>' +
-            this.data.modeles.map(m => `<option value="${m.id}">${m.nom}</option>`).join('');
+            this.data.modeles.map(m => `<option value="${m.id}">${app._esc(m.nom)}</option>`).join('');
     },
 
     confirmReset() {
@@ -7519,9 +7542,9 @@ const app = {
             <div style="display:flex;align-items:center;justify-content:space-between;padding:0.65rem 0.85rem;background:var(--bg-secondary);border-radius:10px;margin-bottom:0.5rem;border:1px solid var(--border-color)">
                 <div style="display:flex;align-items:center;gap:0.75rem">
                     <div style="width:8px;height:8px;border-radius:50%;background:${r.actif ? 'var(--success)' : 'var(--text-tertiary)'};box-shadow:${r.actif ? '0 0 6px var(--success)' : 'none'}"></div>
-                    <span style="font-size:1.1rem">${r.emoji}</span>
+                    <span style="font-size:1.1rem">${app._esc(r.emoji)}</span>
                     <div>
-                        <div style="font-size:0.85rem;font-weight:600">${r.nom}</div>
+                        <div style="font-size:0.85rem;font-weight:600">${app._esc(r.nom)}</div>
                         <div style="font-size:0.7rem;color:var(--text-tertiary)">${r.freq} · le ${r.jour}</div>
                     </div>
                 </div>
@@ -7671,10 +7694,10 @@ const app = {
             <div style="background:var(--bg-card);border-radius:18px;overflow:hidden;box-shadow:8px 8px 20px var(--shadow-light),-8px -8px 20px var(--shadow-dark);transition:transform .2s" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform=''">
               <div style="background:${grad};padding:1.1rem 1.25rem;position:relative">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                  <div style="font-size:1.8rem">${o.emoji}</div>
+                  <div style="font-size:1.8rem">${app._esc(o.emoji)}</div>
                   <button onclick="app.supprimerObjectif(${o.id})" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:.7rem;display:flex;align-items:center;justify-content:center">✕</button>
                 </div>
-                <div style="font-weight:700;color:#fff;font-size:.95rem;margin-top:.35rem">${o.nom}</div>
+                <div style="font-weight:700;color:#fff;font-size:.95rem;margin-top:.35rem">${app._esc(o.nom)}</div>
                 <div style="font-size:.65rem;color:rgba(255,255,255,.7);margin-top:.15rem">${dateLabel} ${doneTag}</div>
               </div>
               <div style="padding:.9rem 1.1rem">
@@ -7699,7 +7722,7 @@ const app = {
 
             calcHtml += `
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.85rem;background:var(--bg-secondary);border-radius:10px;margin-bottom:0.5rem;border:1px solid var(--border-color)">
-                    <div><span style="font-size:0.9rem">${o.emoji}</span> <strong>${o.nom}</strong>
+                    <div><span style="font-size:0.9rem">${app._esc(o.emoji)}</span> <strong>${app._esc(o.nom)}</strong>
                         <div style="font-size:0.72rem;color:var(--text-tertiary)">${dateLabel} · ${moisRestants} mois</div>
                     </div>
                     <div style="text-align:right">
@@ -7799,11 +7822,11 @@ const app = {
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
                     <div style="display:flex;align-items:center;gap:0.5rem">
                         <span style="font-family:DM Mono,monospace;font-size:0.78rem;color:${color};font-weight:600">${dateLabel}</span>
-                        <span style="font-size:0.65rem;padding:0.15rem 0.5rem;border-radius:4px;background:${color}22;color:${color}">${n.tag}</span>
+                        <span style="font-size:0.65rem;padding:0.15rem 0.5rem;border-radius:4px;background:${color}22;color:${color}">${app._esc(n.tag)}</span>
                     </div>
                     <button class="btn btn-small btn-secondary" onclick="app.supprimerNote('${n.id}')">✕</button>
                 </div>
-                <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5">${n.texte}</div>
+                <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5">${app._esc(n.texte)}</div>
             </div>`;
         }).join('');
     },
@@ -7878,7 +7901,7 @@ const app = {
             const isinDisplay = l.isin || l.ticker || '—';
             return `
             <tr>
-                <td><strong>${l.nom}</strong></td>
+                <td><strong>${app._esc(l.nom)}</strong></td>
                 <td style="font-family:DM Mono,monospace;font-size:0.72rem;color:var(--text-tertiary)">${isinDisplay}</td>
                 <td style="font-family:DM Mono,monospace">${l.parts}</td>
                 <td style="font-family:DM Mono,monospace">${this.formatCurrency(l.pru)}</td>
@@ -8698,8 +8721,8 @@ const app = {
         const body = document.getElementById('resume-hebdo-body');
         body.innerHTML = items.map(item => `
             <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.65rem .85rem;background:var(--bg-secondary);border-radius:12px;border-left:3px solid ${item.color}">
-                <span style="font-size:1.1rem;flex-shrink:0">${item.icon}</span>
-                <div><div style="font-size:.85rem;font-weight:600">${item.title}</div><div style="font-size:.72rem;color:var(--text-tertiary);margin-top:.15rem">${item.sub}</div></div>
+                <span style="font-size:1.1rem;flex-shrink:0">${app._esc(item.icon)}</span>
+                <div><div style="font-size:.85rem;font-weight:600">${app._esc(item.title)}</div><div style="font-size:.72rem;color:var(--text-tertiary);margin-top:.15rem">${item.sub}</div></div>
             </div>`).join('');
 
         card.style.display = 'block';
@@ -8946,7 +8969,7 @@ const app = {
         if (importCompteSelect) {
             const comptes = this.data.comptesPointage || [];
             importCompteSelect.innerHTML = '<option value="">💳 Compte — (optionnel)</option>' +
-                comptes.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+                comptes.map(c => `<option value="${c.id}">${app._esc(c.nom)}</option>`).join('');
         }
 
         const cats  = this.data.budgets ? Object.keys(this.data.budgets) : ['AUTRE'];
@@ -9192,7 +9215,7 @@ const app = {
             return `<div class="budget-tx-card budget-tx-card--actions">
                 <div class="budget-tx-icon" style="background:${iconBg}">${emoji}</div>
                 <div class="budget-tx-info">
-                    <div class="budget-tx-name">${tx.label}</div>
+                    <div class="budget-tx-name">${app._esc(tx.label)}</div>
                     <div class="budget-tx-meta">${catName}</div>
                 </div>
                 <div class="budget-tx-date">${dateStr}</div>
@@ -9442,7 +9465,7 @@ const app = {
                     const MONTHS_ABBR = ['jan','fév','mars','avr','mai','juin','juil','août','sep','oct','nov','déc'];
                     return `<div class="an-tx-row">
                         <span class="an-tx-date">${dt.getDate()} ${MONTHS_ABBR[dt.getMonth()]}${isMultiMonth ? ' ' + dt.getFullYear() : ''}</span>
-                        <span class="an-tx-note">${t.note || '—'}</span>
+                        <span class="an-tx-note">${app._esc(t.note || '—')}</span>
                         <span class="an-tx-amount">−${this.formatCurrency(t.montant)}</span>
                     </div>`;
                 }).join('');
@@ -9482,6 +9505,13 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const last = localStorage.getItem('lastTab');
             if (last && last !== 'dashboard') app.switchTab(last);
+        } catch(e) {}
+    });
+
+    // Retour du réseau → renvoyer les modifications restées en local
+    window.addEventListener('online', () => {
+        try {
+            if (localStorage.getItem('suiviFinancierDirty') === '1') app._syncToSupabase();
         } catch(e) {}
     });
 

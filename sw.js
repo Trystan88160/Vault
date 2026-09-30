@@ -1,17 +1,18 @@
 /* ── Service Worker — Vault ── */
-const CACHE_NAME = 'vault-v30';
+const CACHE_NAME = 'vault-v31';
 
-/* Fichiers à mettre en cache dès l'installation */
+/* Fichiers à mettre en cache dès l'installation
+   (chemins relatifs : fonctionne quel que soit le dossier d'hébergement) */
 const STATIC_ASSETS = [
-  '/SUIVI-FINANCIER/',
-  '/SUIVI-FINANCIER/index.html',
-  '/SUIVI-FINANCIER/app.css',
-  '/SUIVI-FINANCIER/app.js',
-  '/SUIVI-FINANCIER/icon-192.png',
-  '/SUIVI-FINANCIER/icon-512.png',
+  './',
+  './index.html',
+  './app.css',
+  './app.js',
+  './icon-192.png',
+  './icon-512.png',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700&family=DM+Mono:wght@300;400;500&display=swap'
+  'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap'
 ];
 
 /* ── Installation : mise en cache des assets statiques ── */
