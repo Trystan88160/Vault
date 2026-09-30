@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh33">
+    <link rel="stylesheet" href="app.css?v=enh34">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -1350,12 +1350,6 @@
     <span class="sp-acc-arrow">›</span>
   </div>
   <div class="sp-acc-body">
-    <div style="margin-bottom:0.85rem">
-      <div class="sp-mini-label">Thème</div>
-      <select class="form-select" id="set-theme" onchange="app.changeTheme()" style="font-size:0.82rem;padding:0.5rem 0.75rem">
-        <option value="light" selected>Vault Clair</option>
-      </select>
-    </div>
     <div>
       <div class="sp-mini-label">Salaire net mensuel (€)</div>
       <input type="number" class="form-input" id="set-salaire" placeholder="Ex : 2 400" step="50" style="font-size:0.82rem;padding:0.5rem 0.75rem">
@@ -1363,26 +1357,6 @@
       <div style="font-size:0.67rem;color:var(--text-tertiary);margin-top:0.3rem">Utilisé comme fallback si aucun revenu saisi ce mois</div>
     </div>
     <button class="btn" onclick="app.saveSettings()" style="width:100%;margin-top:1rem;padding:0.6rem">Sauvegarder</button>
-  </div>
-</div>
-
-<!-- Accordéon — Données PEA -->
-<div class="sp-acc" style="margin:0.5rem 1.25rem 0">
-  <div class="sp-acc-head" onclick="app.toggleAcc(this)">
-    <span class="sp-acc-icon">📈</span>
-    <span class="sp-acc-title">Données PEA</span>
-    <span class="sp-acc-arrow">›</span>
-  </div>
-  <div class="sp-acc-body">
-    <div class="sp-mini-label">Clé API Finnhub — Cours en temps réel</div>
-    <div style="display:flex;gap:0.5rem;align-items:center">
-      <input type="password" class="form-input" id="set-finnhub-key" placeholder="cxxxxxxxxxxxxxx" style="font-family:'DM Mono',monospace;font-size:0.78rem;padding:0.5rem 0.75rem;flex:1">
-      <button class="btn btn-small btn-secondary" onclick="app.testerFinnhub()" style="white-space:nowrap;flex-shrink:0">Tester</button>
-    </div>
-    <div style="font-size:0.67rem;color:var(--text-tertiary);margin-top:0.4rem;line-height:1.6">
-      Gratuit sur <strong style="color:var(--accent-primary)">finnhub.io</strong> · 60 appels/min sans CB.<br>
-      Tickers : <span style="font-family:'DM Mono',monospace;color:var(--accent-primary)">CW8.PA</span> (Paris) · <span style="font-family:'DM Mono',monospace;color:var(--accent-primary)">AAPL</span> (NYSE)
-    </div>
   </div>
 </div>
 
@@ -1402,7 +1376,7 @@
 </div>
 
 <!-- Accordéon — Historique -->
-<div class="sp-acc" style="margin:0.5rem 1.25rem 0">
+<div class="sp-acc" style="margin:0.5rem 1.25rem 1.5rem">
   <div class="sp-acc-head" onclick="app.toggleAcc(this);app.refreshHistorique()">
     <span class="sp-acc-icon">🕘</span>
     <span class="sp-acc-title">Historique (30 jours)</span>
@@ -1414,22 +1388,11 @@
   </div>
 </div>
 
-<!-- Accordéon — Zone de danger -->
-<div class="sp-acc" style="margin:0.5rem 1.25rem 1.5rem">
-  <div class="sp-acc-head" onclick="app.toggleAcc(this)" style="color:var(--danger)">
-    <span class="sp-acc-icon">⚠️</span>
-    <span class="sp-acc-title" style="color:var(--danger)">Zone de danger</span>
-    <span class="sp-acc-arrow" style="color:var(--danger)">›</span>
-  </div>
-  <div class="sp-acc-body">
-    <button class="btn btn-secondary" onclick="app.confirmReset()" style="width:100%;padding:0.6rem;color:var(--danger);border:1px solid rgba(244,67,54,0.3);background:rgba(244,67,54,0.06)">Réinitialiser toutes les données</button>
-  </div>
-</div>
 
 </div>
 
 
-<script src="app.js?v=enh33" defer></script>
+<script src="app.js?v=enh34" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">
