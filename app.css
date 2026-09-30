@@ -1963,3 +1963,9 @@ tbody tr:nth-child(n+5){animation-delay:.14s}
 .bh-budget .budget-hero-prog-labels{gap:.75rem;align-items:baseline}
 .bh-budget .budget-hero-prog-labels strong{white-space:nowrap}
 @media (max-width:768px){.bh-budget .budget-hero-prog-labels span,.bh-budget .budget-hero-prog-labels strong{font-size:.58rem}}
+
+/* Détail d'une catégorie */
+.budget-cat-card--click{cursor:pointer}
+.budget-cat-card--click:active{transform:scale(.99)}
+#cat-detail-list{display:flex;flex-direction:column;gap:.5rem}
+.cd-hint{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.1rem}
