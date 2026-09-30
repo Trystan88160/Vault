@@ -1091,15 +1091,11 @@ const app = {
         };
         if (!this.data.parametres.theme)  this.data.parametres.theme  = 'auto';
         if (!this.data.parametres.salaire) this.data.parametres.salaire = 0;
-        const elTheme   = document.getElementById('set-theme');
         const elSalaire = document.getElementById('set-salaire');
-        if (elTheme)   elTheme.value   = this.data.parametres.theme;
         if (elSalaire) {
             elSalaire.value = this.data.parametres.salaire || '';
             this._updateSalaireDisplay(this.data.parametres.salaire || 0);
         }
-        const elFinnhub = document.getElementById('set-finnhub-key');
-        if (elFinnhub) elFinnhub.value = this.data.parametres.finnhubKey || '';
     },
 
     save() {
@@ -2353,8 +2349,7 @@ const app = {
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-secondary)">
     <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-secondary);font-weight:700;margin-bottom:.25rem">📋 Lignes du Portefeuille & Plus-values</div>
     <p style="font-size:.79rem;margin:0"><strong>Ce qu'on fait :</strong> ajoute chaque ligne (ETF, action) avec son ticker, nombre de parts et prix d'achat (PRU).<br>
-    <strong>Actualiser les cours :</strong> si tu as une clé API Finnhub dans ⚙, le bouton récupère les cours en temps réel et recalcule la plus-value latente.<br>
-    <strong>Sans Finnhub :</strong> entre le prix actuel manuellement — la performance reste calculée.</p>
+    <strong>Prix actuel :</strong> entre le prix actuel manuellement — la plus-value latente et la performance sont recalculées.</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--warning)">
@@ -2472,17 +2467,8 @@ const app = {
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-primary)">
     <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-primary);font-weight:700;margin-bottom:.25rem">🎨 Préférences</div>
-    <p style="font-size:.79rem;margin:0"><strong>Thème :</strong> plusieurs thèmes disponibles — clairs (Aurora, Brume, Horizon, Aqua) et sombres (Aurora, Abyss, Obsidian, Arctic) + Auto (suit le système OS).<br>
-    <strong>Salaire net mensuel :</strong> valeur de référence utilisée comme <em>fallback</em> si aucun revenu n'est saisi pour un mois donné. Utilisé dans le bilan annuel, les alertes et la règle 50/30/20.<br>
+    <p style="font-size:.79rem;margin:0"><strong>Salaire net mensuel :</strong> valeur de référence utilisée comme <em>fallback</em> si aucun revenu n'est saisi pour un mois donné. Utilisé dans le bilan annuel, les alertes et la règle 50/30/20.<br>
     <strong>Important :</strong> si tu saisis tes revenus réels dans l'onglet Dépenses, ce salaire est ignoré pour ce mois-là.</p>
-  </div>
-
-  <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--success)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--success);font-weight:700;margin-bottom:.25rem">📈 Données PEA</div>
-    <p style="font-size:.79rem;margin:0"><strong>Clé API Finnhub :</strong> récupère les cours boursiers en temps réel pour actualiser la valeur de tes positions PEA.<br>
-    <strong>Comment obtenir :</strong> va sur <em>finnhub.io</em>, crée un compte gratuit, copie ta clé API.<br>
-    <strong>Sans clé :</strong> tu peux utiliser le PEA normalement — entre juste les prix manuellement.<br>
-    <strong>Limite :</strong> clé gratuite = 60 requêtes/min, suffisant pour un portefeuille standard.</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-secondary)">
@@ -2492,10 +2478,10 @@ const app = {
     <strong>Sync Supabase :</strong> tes données sont synchronisées en temps réel — si tu ouvres l'app sur un autre appareil avec le même compte, tout est là.</p>
   </div>
 
-  <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--danger)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--danger);font-weight:700;margin-bottom:.25rem">⚠️ Zone de danger</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce que ça fait :</strong> supprime <strong>toutes tes données</strong> (dépenses, revenus, PEA, patrimoine, objectifs, notes) de façon <strong>irréversible</strong>.<br>
-    <strong>Avant de cliquer :</strong> fais impérativement un export Excel via le bouton Sauvegarde & Export.</p>
+  <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--warning)">
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--warning);font-weight:700;margin-bottom:.25rem">🕘 Historique</div>
+    <p style="font-size:.79rem;margin:0"><strong>Ce que ça fait :</strong> une copie complète de tes données est gardée chaque jour, pendant 30 jours.<br>
+    <strong>Restaurer :</strong> remet tes données dans l'état de la copie choisie. L'état actuel est sauvegardé juste avant, tu peux donc revenir en arrière.</p>
   </div>
 
 </div>`
@@ -3239,12 +3225,6 @@ const app = {
         );
     },
 
-    changeTheme() {
-        this.data.parametres.theme = document.getElementById('set-theme').value;
-        this.applyTheme();
-        this.save();
-    },
-
     setZoom(level) {
         const scales = { 80: 0.80, 90: 0.90, 100: 1.00, 110: 1.10 };
         const scale = scales[level] || 1;
@@ -3309,8 +3289,6 @@ const app = {
             document.body.setAttribute('data-theme', theme);
         }
 
-        const sel = document.getElementById('set-theme');
-        if (sel && sel.value !== theme) sel.value = theme;
         setTimeout(() => { this.refreshCharts(); this._refreshAllChartColorBtns(); this.applyAllTabCards(); }, 150);
     },
 
@@ -6582,8 +6560,6 @@ const app = {
     saveSettings() {
         const salaire = parseFloat(document.getElementById('set-salaire').value) || 0;
         this.data.parametres.salaire = salaire;
-        const finnhubKey = (document.getElementById('set-finnhub-key')?.value || '').trim();
-        if (finnhubKey) this.data.parametres.finnhubKey = finnhubKey;
         this.save();
         this._updateSalaireDisplay(salaire);
         this.refreshVueRapide();
@@ -7061,17 +7037,6 @@ const app = {
         if (!select) return;
         select.innerHTML = '<option value="">-- Nouveau modèle --</option>' +
             this.data.modeles.map(m => `<option value="${m.id}">${app._esc(m.nom)}</option>`).join('');
-    },
-
-    confirmReset() {
-        this.showModal(
-            'Réinitialiser toutes les données',
-            'Êtes-vous sûr de vouloir réinitialiser TOUTES les données ? Cette action est irréversible.',
-            () => {
-                localStorage.clear();
-                location.reload();
-            }
-        );
     },
 
     refreshScore() {
@@ -8096,26 +8061,6 @@ const app = {
         } finally {
             if (btn)  btn.disabled = false;
             if (icon) icon.textContent = '🔄';
-        }
-    },
-
-    async testerFinnhub() {
-        const key = (document.getElementById('set-finnhub-key')?.value || '').trim();
-        if (!key) { this.notify('Entre ta clé API en premier', 'error'); return; }
-        this.data.parametres.finnhubKey = key;
-        this.notify('Test en cours…', 'info');
-        try {
-            const url = `https://finnhub.io/api/v1/quote?symbol=AAPL&token=${key}`;
-            const r = await fetch(url);
-            const d = await r.json();
-            if (d && d.c > 0) {
-                this.notify(`✅ Finnhub connecté ! Apple = $${d.c}`, 'success');
-                this.save();
-            } else {
-                this.notify('❌ Clé invalide ou quota dépassé', 'error');
-            }
-        } catch(e) {
-            this.notify('❌ Erreur de connexion Finnhub', 'error');
         }
     },
 
