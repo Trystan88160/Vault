@@ -3925,11 +3925,9 @@ const app = {
                         const amtStr = (isRev ? '+' : '−') + this.formatCurrency(Math.abs(i.montant));
                         const amtCls = 'budget-tx-amount' + (isRev ? ' pos' : '');
                         const iconBg = isRev ? 'rgba(0,200,83,.12)' : 'var(--bg-secondary)';
-                        const actions = isRev
-                            ? `<button class="budget-tx-action-btn" onclick="app.supprimerRevenu('${i.id}')" title="Supprimer">✕</button>`
-                            : `<button class="budget-tx-action-btn" onclick="app.modifierNote('depense','${i.id}')" title="Modifier">✏️</button>
-                               <button class="budget-tx-action-btn" onclick="app.supprimerDepense('${i.id}')" title="Supprimer">✕</button>`;
-                        return `<div class="budget-tx-card budget-tx-card--actions">
+                        const actions = `<button class="budget-tx-action-btn" onclick="event.stopPropagation();app.ouvrirEditTransaction('${isRev ? 'rev' : 'dep'}','${i.id}')" title="Modifier">✏️</button>
+                               <button class="budget-tx-action-btn" onclick="event.stopPropagation();app.${isRev ? 'supprimerRevenu' : 'supprimerDepense'}('${i.id}')" title="Supprimer">✕</button>`;
+                        return `<div class="budget-tx-card budget-tx-card--actions budget-tx-card--edit" onclick="app.ouvrirEditTransaction('${isRev ? 'rev' : 'dep'}','${i.id}')">
                             <div class="budget-tx-icon" style="background:${iconBg}">${app._esc(i.emoji)}</div>
                             <div class="budget-tx-info">
                                 <div class="budget-tx-name">${app._esc(i.label)}</div>
@@ -3978,14 +3976,22 @@ const app = {
         this.afficherDepenses();
     },
 
+    ouvrirEditTransaction(type, id) {
+        if (type === 'rev') this.ouvrirEditRevenu(id);
+        else this.ouvrirEditDepense(id);
+    },
+
     ouvrirEditDepense(id) {
-        const dep = this.data.depenses.find(d => d.id === id);
+        const dep = this.data.depenses.find(d => String(d.id) === String(id));
         if (!dep) return;
+        this._editRevId = null;
 
         // Nettoyer une éventuelle modale précédente
         document.getElementById('edit-dep-modal')?.remove();
 
         const cats = Object.keys(this.data.budgets).sort();
+        // Catégorie supprimée depuis : la garder dans la liste pour ne pas la changer en silence
+        if (dep.categorie && !cats.includes(dep.categorie)) cats.unshift(dep.categorie);
         const catsOpts = cats.map(c => `<option value="${app._esc(c)}" ${c === dep.categorie ? 'selected' : ''}>${app._esc(c)}</option>`).join('');
         const hasComptes = (this.data.comptesPointage || []).length > 0;
         const comptesOpts = (this.data.comptesPointage || []).map(c =>
@@ -4027,8 +4033,9 @@ const app = {
               ${compteHtml}
             </div>
             <div class="modal-footer">
+              <button class="vp-btn-save vp-btn-danger" onclick="app._fermerEditDepense();app.supprimerDepense('${dep.id}')">Supprimer</button>
               <button class="vp-btn-cancel" onclick="app._fermerEditDepense()">Annuler</button>
-              <button class="vp-btn-save" onclick="app._sauvegarderEditDepense('${id}')">Enregistrer</button>
+              <button class="vp-btn-save" onclick="app._sauvegarderEditDepense('${dep.id}')">Enregistrer</button>
             </div>`;
         document.body.appendChild(modal);
         modal.classList.add('active');
@@ -4049,6 +4056,9 @@ const app = {
     _fermerEditDepense() {
         const modal = document.getElementById('edit-dep-modal');
         if (modal) {
+            // Retirer « active » tout de suite, sinon la fenêtre en cours de fermeture
+            // compte encore comme ouverte et le voile reste affiché (clics bloqués)
+            modal.classList.remove('active');
             modal.classList.add('closing');
             setTimeout(() => modal.remove(), 210);
         }
@@ -4064,7 +4074,7 @@ const app = {
     },
 
     _sauvegarderEditDepense(id) {
-        const dep = this.data.depenses.find(d => d.id === id);
+        const dep = this.data.depenses.find(d => String(d.id) === String(id));
         if (!dep) return;
         const cat     = document.getElementById('edit-dep-cat')?.value;
         const montant = parseFloat(document.getElementById('edit-dep-montant')?.value);
@@ -4079,13 +4089,80 @@ const app = {
         if (compteEl) dep.compteId = compteEl.value || null;
         this._fermerEditDepense();
         this.save();
-        this.afficherDepenses();
-        this.refreshStatsDepenses();
-        this.analyseDepenses();
+        this._rafraichirApresTransaction();
+        this.notify('Dépense modifiée', 'success');
+    },
+
+    _rafraichirApresTransaction() {
+        this.refresh();
         this.updateBudgetsUI();
         this.refreshCharts();
-        this.refreshPointage();
-        this.notify('Dépense modifiée', 'success');
+        this.refreshHistoriqueRevenus?.();
+        this._refreshBudgetHeroAndCats?.();
+    },
+
+    ouvrirEditRevenu(id) {
+        const rev = this.data.revenus.find(r => String(r.id) === String(id));
+        if (!rev) return;
+        document.getElementById('edit-dep-modal')?.remove();
+        const types = ['Salaire', 'Prime', 'Locatif', 'Dividende', 'Remboursement', 'Autre'];
+        if (rev.type && !types.includes(rev.type)) types.unshift(rev.type);
+        const typeLabels = { Prime: 'Prime / Bonus', Locatif: 'Revenu locatif' };
+        const typesOpts = types.map(t => `<option value="${app._esc(t)}" ${t === rev.type ? 'selected' : ''}>${app._esc(typeLabels[t] || t)}</option>`).join('');
+        const comptes = this.data.comptesPointage || [];
+        const compteHtml = comptes.length ? `<div class="form-group">
+                <label class="form-label">Compte</label>
+                <select class="form-select" id="edit-dep-compte"><option value="">— Aucun —</option>${
+                    comptes.map(c => `<option value="${c.id}" ${String(c.id) === String(rev.compteId) ? 'selected' : ''}>${app._esc(c.nom)}</option>`).join('')
+                }</select></div>` : '';
+        const modal = document.createElement('div');
+        modal.id = 'edit-dep-modal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-header"><h2 class="modal-title">✏️ Modifier le revenu</h2></div>
+            <div class="modal-body">
+              <div class="form-group"><label class="form-label">Type</label><select class="form-select" id="edit-rev-type">${typesOpts}</select></div>
+              <div class="form-group"><label class="form-label">Montant (€)</label><input type="number" class="form-input" id="edit-dep-montant" value="${rev.montant}" step="0.01" min="0"></div>
+              <div class="form-group"><label class="form-label">Date</label><input type="date" class="form-input" id="edit-dep-date" value="${app._esc(rev.date || '')}"></div>
+              <div class="form-group"><label class="form-label">Note</label><input type="text" class="form-input" id="edit-dep-note" value="${app._esc(rev.note || '')}"></div>
+              ${compteHtml}
+            </div>
+            <div class="modal-footer">
+              <button class="vp-btn-save vp-btn-danger" onclick="app._fermerEditDepense();app.supprimerRevenu('${rev.id}')">Supprimer</button>
+              <button class="vp-btn-cancel" onclick="app._fermerEditDepense()">Annuler</button>
+              <button class="vp-btn-save" onclick="app._sauvegarderEditRevenu('${rev.id}')">Enregistrer</button>
+            </div>`;
+        document.body.appendChild(modal);
+        modal.classList.add('active');
+        const vpOverlay = document.getElementById('vp-global-overlay');
+        if (vpOverlay) {
+            vpOverlay.classList.add('vp-active');
+            requestAnimationFrame(() => vpOverlay.classList.add('vp-visible'));
+            vpOverlay._editDepHandler = () => {
+                if (_vpMouseDownInsideModal) return;
+                this._fermerEditDepense();
+            };
+            vpOverlay.addEventListener('click', vpOverlay._editDepHandler);
+        }
+    },
+
+    _sauvegarderEditRevenu(id) {
+        const rev = this.data.revenus.find(r => String(r.id) === String(id));
+        if (!rev) return;
+        const montant = parseFloat(document.getElementById('edit-dep-montant')?.value);
+        const date    = document.getElementById('edit-dep-date')?.value;
+        if (isNaN(montant) || montant <= 0 || !date) { this.notify('Champs invalides', 'error'); return; }
+        rev.montant = montant;
+        rev.date    = date;
+        rev.mois    = date.slice(0, 7);
+        rev.type    = document.getElementById('edit-rev-type')?.value || rev.type;
+        rev.note    = document.getElementById('edit-dep-note')?.value || '';
+        const compteEl = document.getElementById('edit-dep-compte');
+        if (compteEl) rev.compteId = compteEl.value || null;
+        this._fermerEditDepense();
+        this.save();
+        this._rafraichirApresTransaction();
+        this.notify('Revenu modifié', 'success');
     },
 
     supprimerDepense(id) {
@@ -4188,8 +4265,9 @@ const app = {
 
     supprimerRevenu(id) {
         this.showModal('Supprimer ce revenu', 'Voulez-vous supprimer cette entrée ?', () => {
-            this.data.revenus = this.data.revenus.filter(r => r.id !== id);
+            this.data.revenus = this.data.revenus.filter(r => String(r.id) !== String(id));
             this.save();
+            this._refreshBudgetHeroAndCats?.();
             this.refreshRevenus();
             this.refreshHistoriqueRevenus();
             this.refreshDashboard();
@@ -4502,7 +4580,7 @@ const app = {
                             <span style="font-family:DM Mono,monospace;font-size:0.7rem;color:var(--text-tertiary);min-width:80px">${new Date(d.date).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</span>
                             <span style="font-size:0.82rem;flex:1;color:var(--text-secondary)">${app._esc(d.note || '—')}</span>
                             <span style="font-family:DM Mono,monospace;font-size:0.82rem;font-weight:600;color:var(--text-primary)">${this.formatCurrency(d.montant)}</span>
-                            <button onclick="app.modifierNote('depense', '${d.id}')" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:0.82rem;padding:0 0.25rem" title="Modifier">✏️</button>
+                            <button onclick="app.ouvrirEditDepense('${d.id}')" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:0.82rem;padding:0 0.25rem" title="Modifier">✏️</button>
                             <button onclick="app.supprimerDepense('${d.id}')" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:0.75rem;padding:0 0.25rem" title="Supprimer">✕</button>
                         </div>`).join('');
                     html += `
@@ -9276,15 +9354,13 @@ const app = {
             const amountStr = (tx.montant >= 0 ? '+' : '−') + this.formatCurrency(Math.abs(tx.montant));
             const amountClass = tx.montant >= 0 ? 'budget-tx-amount pos' : 'budget-tx-amount';
             const iconBg = tx.type === 'rev' ? 'rgba(0,200,83,.12)' : 'var(--bg-secondary)';
-            const actions = tx.type === 'rev'
-                ? `<button class="budget-tx-action-btn" onclick="app.supprimerRevenu('${tx.id}')" title="Supprimer">✕</button>`
-                : `<button class="budget-tx-action-btn" onclick="app.modifierNote('depense','${tx.id}')" title="Modifier">✏️</button>
-                   <button class="budget-tx-action-btn" onclick="app.supprimerDepense('${tx.id}')" title="Supprimer">✕</button>`;
-            return `<div class="budget-tx-card budget-tx-card--actions">
+            const actions = `<button class="budget-tx-action-btn" onclick="event.stopPropagation();app.ouvrirEditTransaction('${tx.type}','${tx.id}')" title="Modifier">✏️</button>
+                   <button class="budget-tx-action-btn" onclick="event.stopPropagation();app.${tx.type === 'rev' ? 'supprimerRevenu' : 'supprimerDepense'}('${tx.id}')" title="Supprimer">✕</button>`;
+            return `<div class="budget-tx-card budget-tx-card--actions budget-tx-card--edit" onclick="app.ouvrirEditTransaction('${tx.type}','${tx.id}')">
                 <div class="budget-tx-icon" style="background:${iconBg}">${emoji}</div>
                 <div class="budget-tx-info">
                     <div class="budget-tx-name">${app._esc(tx.label)}</div>
-                    <div class="budget-tx-meta">${catName}</div>
+                    <div class="budget-tx-meta">${app._esc(catName)}</div>
                 </div>
                 <div class="budget-tx-date">${dateStr}</div>
                 <div class="${amountClass}">${amountStr}</div>
@@ -9342,7 +9418,7 @@ const app = {
         set('budget-hero-restant', this.formatCurrency(restant) + ' restants');
         set('budget-hero-total-label', this.formatCurrency(budgetTotal));
         set('budget-hero-total-label2', this.formatCurrency(budgetTotal));
-        if (daysLeft > 0) set('budget-hero-days', daysLeft + ' jour' + (daysLeft > 1 ? 's' : '') + ' restants');
+        if (daysLeft > 0) set('budget-hero-days', daysLeft + ' jour' + (daysLeft > 1 ? 's restants' : ' restant'));
         else set('budget-hero-days', '');
         const sub = document.getElementById('budget-hero-sub');
         if (sub) sub.innerHTML = 'sur <span id="budget-hero-total-label">' + this.formatCurrency(budgetTotal) + '</span> de budget mensuel · <strong id="budget-hero-restant" style="color:rgba(255,255,255,.9)">' + this.formatCurrency(restant) + ' restants</strong>';
@@ -9372,8 +9448,15 @@ const app = {
         const allCats = new Set([...Object.keys(this.data.budgets), ...Object.keys(bycat)]);
         const catData = Array.from(allCats)
             .map(cat => ({ cat, spent: bycat[cat] || 0, budget: this.data.budgets[cat] || 0 }))
-            .filter(c => c.cat in this.data.budgets || c.spent > 0)
-            .sort((a, b) => b.spent - a.spent)
+            .filter(c => c.spent > 0 || c.budget > 0)          // ex. ÉPARGNE 0 € / 0 € : masquée
+            .sort((a, b) => {
+                const pa = a.budget > 0 ? a.spent / a.budget : (a.spent > 0 ? Infinity : 0);
+                const pb = b.budget > 0 ? b.spent / b.budget : (b.spent > 0 ? Infinity : 0);
+                const overA = pa >= 1, overB = pb >= 1;
+                if (overA !== overB) return overA ? -1 : 1;    // dépassements en premier
+                if (overA) return pb - pa;                     // …du plus gros dépassement au plus petit
+                return b.spent - a.spent;                      // puis par montant dépensé
+            })
             .slice(0, 8);
         if (catData.length === 0) {
             container.innerHTML = '<div class="empty-state" style="padding:1.5rem"><div class="empty-state-icon">📂</div><div>Aucune catégorie active pour ce mois</div></div>';

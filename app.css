@@ -1881,3 +1881,7 @@ tbody tr:nth-child(n+5){animation-delay:.14s}
   .cat-pct-badge.warn{color:var(--warning)}
   .cat-pct-badge.danger{color:var(--danger)}
 }
+
+/* Transactions : toute la ligne est cliquable pour modifier */
+.budget-tx-card--edit{cursor:pointer}
+.budget-tx-card--edit:active{transform:scale(.99)}
