@@ -9597,9 +9597,13 @@ const app = {
         const dernierJour = new Date(y, m + 1, 0).getDate();
         const jour = Math.min(r.jour || 1, dernierJour);
         const cats = Object.keys(this.data.budgets || {});
-        const categorie = (r.categorie && cats.includes(r.categorie)) ? r.categorie : this._guessCategory(r.nom || '', '');
+        const catChoisie = r.categorie && cats.includes(r.categorie);
+        let categorie = catChoisie ? r.categorie : this._guessCategory(r.nom || '', '');
+        // Rien de reconnu (_guessCategory renvoie alors la 1re catégorie) : AUTRE plutôt qu'une catégorie au hasard
+        if (!catChoisie && categorie === cats[0] && cats.includes('AUTRE')) categorie = 'AUTRE';
+        const newId = crypto.randomUUID();
         this.data.depenses.push({
-            id: crypto.randomUUID(),
+            id: newId,
             categorie,
             montant: r.montant,
             date: y + '-' + String(m + 1).padStart(2, '0') + '-' + String(jour).padStart(2, '0'),
@@ -9609,7 +9613,13 @@ const app = {
         });
         this.save();
         this._rafraichirApresTransaction();
-        this.notify(`✅ ${r.nom} ajouté aux dépenses (${categorie}) — touche-le pour modifier`, 'success');
+        if (catChoisie) {
+            this.notify(`✅ ${r.nom} ajouté aux dépenses (${categorie})`, 'success');
+        } else {
+            // Pas de catégorie définie sur la récurrence : la faire valider tout de suite
+            this.notify(`${r.nom} ajouté — vérifie la catégorie`, 'info');
+            setTimeout(() => this.ouvrirEditDepense(newId), 250);
+        }
     },
 
     /* Analyse détaillée — catégories dépliables */
