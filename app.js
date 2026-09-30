@@ -4404,11 +4404,44 @@ const app = {
                 compteGroup.style.display = 'none';
             }
         }
+        const typeSel = document.getElementById('rev-type');
+        if (typeSel) typeSel.value = 'Salaire';
+        if (montant) montant.dataset.prefill = '';
+        this._prefillRevenu();
         // Afficher l'historique récent
         this.refreshHistoriqueRevenus();
         // Ouvrir le bottom sheet
         const overlay = document.getElementById('bs-rev-overlay');
         if (overlay) overlay.classList.add('open');
+        // Montant sélectionné : on tape directement le bon chiffre par-dessus
+        if (montant) { montant.focus({ preventScroll: true }); montant.select?.(); }
+    },
+
+    // Pré-remplit avec le dernier revenu du même type (ex. dernier salaire), à corriger si besoin
+    _prefillRevenu() {
+        const montant = document.getElementById('rev-montant');
+        const note = document.getElementById('rev-note');
+        const hint = document.getElementById('rev-prefill-hint');
+        const type = document.getElementById('rev-type')?.value;
+        if (!montant) return;
+        // Ne jamais écraser un montant tapé à la main
+        if (montant.value && montant.dataset.prefill !== '1') return;
+        const dernier = (this.data.revenus || [])
+            .filter(r => r.type === type && r.montant > 0)
+            .sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+        if (dernier) {
+            montant.value = dernier.montant;
+            montant.dataset.prefill = '1';
+            if (note && (!note.value || note.dataset.prefill === '1')) { note.value = dernier.note || ''; note.dataset.prefill = '1'; }
+            const quand = dernier.date ? new Date(dernier.date).toLocaleDateString('fr-FR', { month: 'long' }) : '';
+            if (hint) hint.textContent = '↺ montant de ton dernier ' + (type === 'Salaire' ? 'salaire' : 'revenu « ' + type + ' »') + (quand ? ' (' + quand + ')' : '') + ' — corrige-le si besoin';
+        } else {
+            if (montant.dataset.prefill === '1') montant.value = '';
+            montant.dataset.prefill = '';
+            if (note && note.dataset.prefill === '1') { note.value = ''; note.dataset.prefill = ''; }
+            if (hint) hint.textContent = '';
+        }
+        if (montant.dataset.prefill === '1') montant.select?.();
     },
 
     closeBsRevenus() {
