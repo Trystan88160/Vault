@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh32">
+    <link rel="stylesheet" href="app.css?v=enh33">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -1401,6 +1401,19 @@
   </div>
 </div>
 
+<!-- Accordéon — Historique -->
+<div class="sp-acc" style="margin:0.5rem 1.25rem 0">
+  <div class="sp-acc-head" onclick="app.toggleAcc(this);app.refreshHistorique()">
+    <span class="sp-acc-icon">🕘</span>
+    <span class="sp-acc-title">Historique (30 jours)</span>
+    <span class="sp-acc-arrow">›</span>
+  </div>
+  <div class="sp-acc-body">
+    <div class="sp-mini-label" style="margin-bottom:0.35rem">Une copie complète de tes données est gardée chaque jour.</div>
+    <div id="history-list"></div>
+  </div>
+</div>
+
 <!-- Accordéon — Zone de danger -->
 <div class="sp-acc" style="margin:0.5rem 1.25rem 1.5rem">
   <div class="sp-acc-head" onclick="app.toggleAcc(this)" style="color:var(--danger)">
@@ -1416,7 +1429,7 @@
 </div>
 
 
-<script src="app.js?v=enh32" defer></script>
+<script src="app.js?v=enh33" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">
