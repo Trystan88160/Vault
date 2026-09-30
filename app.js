@@ -7620,7 +7620,14 @@ const app = {
                     <div class="form-group"><label class="form-label">Jour du mois</label><input type="number" class="form-input" id="rec-jour" placeholder="1" min="1" max="31"></div>
                 </div>
                 <div class="form-group"><label class="form-label">Fréquence</label>
-                    <select class="form-select" id="rec-freq"><option value="mensuel">Mensuel</option><option value="trimestriel">Trimestriel</option><option value="annuel">Annuel</option></select>
+                    <select class="form-select" id="rec-freq" onchange="document.getElementById('rec-mois-wrap').style.display = this.value === 'mensuel' ? 'none' : ''"><option value="mensuel">Mensuel</option><option value="trimestriel">Trimestriel</option><option value="annuel">Annuel</option></select>
+                </div>
+                <div class="form-group" id="rec-mois-wrap" style="display:none"><label class="form-label">Premier mois de prélèvement</label>
+                    <input type="month" class="form-input" id="rec-mois" value="${new Date().toISOString().slice(0, 7)}">
+                </div>
+                <div class="form-group"><label class="form-label">Catégorie (quand elle passe)</label>
+                    <select class="form-select" id="rec-cat"><option value="">Deviner automatiquement</option>${
+                        Object.keys(this.data.budgets || {}).map(c => `<option value="${this._esc(c)}">${this._esc(c)}</option>`).join('')}</select>
                 </div>
             </div>
             <div class="modal-footer">
@@ -7641,18 +7648,24 @@ const app = {
         const jour = parseInt(document.getElementById('rec-jour').value) || 1;
         const freq = document.getElementById('rec-freq').value;
         if (!nom || !montant) { this.notify('Remplir nom et montant', 'error'); return; }
-        this.data.recurrences.push({ id: crypto.randomUUID(), nom, emoji, montant, jour, freq, actif: true });
+        const rec = { id: crypto.randomUUID(), nom, emoji, montant, jour, freq, actif: true };
+        if (freq !== 'mensuel') rec.moisRef = document.getElementById('rec-mois')?.value || new Date().toISOString().slice(0, 7);
+        const recCat = document.getElementById('rec-cat')?.value;
+        if (recCat) rec.categorie = recCat;
+        this.data.recurrences.push(rec);
         this.save();
         this.refreshRecurrences();
+        this._refreshBudgetHeroAndCats?.();
         document.getElementById('recurrenceModal').classList.remove('active');
         document.getElementById('overlay').classList.remove('active');
         this.notify('Récurrence ajoutée', 'success');
     },
 
     supprimerRecurrence(id) {
-        this.data.recurrences = this.data.recurrences.filter(r => r.id !== id);
+        this.data.recurrences = this.data.recurrences.filter(r => String(r.id) !== String(id));
         this.save();
         this.refreshRecurrences();
+        this._refreshBudgetHeroAndCats?.();
         this.notify('Récurrence supprimée', 'success');
     },
 
@@ -9413,7 +9426,25 @@ const app = {
         const daysLeft = isCurrentMonth ? daysInMonth - today.getDate() + 1 : 0;
 
         const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-        set('budget-hero-amount', this.formatCurrency(totalDep));
+        const eur0 = v => (v < 0 ? '−' : '') + Math.round(Math.abs(v)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' €';
+
+        // Revenus / solde du mois
+        const { total: revenus, source: revSource } = this.getRevenusMois(y, m);
+        const solde = revenus - totalDep;
+        const aVenir = this._recurrencesAVenir(y, m);
+        const totalAVenir = aVenir.reduce((sum, r) => sum + r.montant, 0);
+        set('bh-revenus', revenus > 0 ? '+' + eur0(revenus) : '—');
+        set('bh-revenus-sub', revSource === 'salaire' ? 'salaire paramétré' : revSource === 'inconnu' ? 'aucun revenu saisi' : '');
+        const soldeEl = document.getElementById('bh-solde');
+        if (soldeEl) {
+            soldeEl.textContent = revenus > 0 ? (solde >= 0 ? '+' : '') + eur0(solde) : '—';
+            soldeEl.classList.toggle('neg', revenus > 0 && solde < 0);
+        }
+        set('bh-dep-sub', totalAVenir > 0 ? '+ ' + eur0(totalAVenir) + ' à venir' : '');
+        set('bh-solde-prevu', revenus > 0 && totalAVenir > 0 ? 'prévu fin de mois : ' + (solde - totalAVenir >= 0 ? '+' : '') + eur0(solde - totalAVenir) : '');
+        this._renderAVenir(aVenir, y, m);
+
+        set('budget-hero-amount', '−' + eur0(totalDep));
         set('budget-hero-badge', Math.round(pct) + '% utilisé');
         set('budget-hero-restant', this.formatCurrency(restant) + ' restants');
         set('budget-hero-total-label', this.formatCurrency(budgetTotal));
@@ -9421,10 +9452,28 @@ const app = {
         if (daysLeft > 0) set('budget-hero-days', daysLeft + ' jour' + (daysLeft > 1 ? 's restants' : ' restant'));
         else set('budget-hero-days', '');
         const sub = document.getElementById('budget-hero-sub');
-        if (sub) sub.innerHTML = 'sur <span id="budget-hero-total-label">' + this.formatCurrency(budgetTotal) + '</span> de budget mensuel · <strong id="budget-hero-restant" style="color:rgba(255,255,255,.9)">' + this.formatCurrency(restant) + ' restants</strong>';
+        if (sub) sub.innerHTML = 'Budget ' + eur0(totalDep) + ' / ' + eur0(budgetTotal) + ' · <b style="color:rgba(255,255,255,.9)">' + (restant >= 0 ? eur0(restant) + ' restants' : eur0(-restant) + ' de dépassement') + '</b>';
         const progEl = document.getElementById('budget-hero-prog');
         if (progEl) {
             progEl.style.width = pct + '%';
+        }
+        // Repère « aujourd'hui » : où tu devrais en être si tu dépensais régulièrement
+        const paceFrac = isCurrentMonth ? today.getDate() / daysInMonth : null;
+        this._budgetPaceFrac = paceFrac;
+        const paceEl = document.getElementById('budget-hero-pace');
+        const paceLeg = document.getElementById('budget-hero-pace-legend');
+        if (paceEl) {
+            paceEl.style.display = paceFrac !== null ? '' : 'none';
+            if (paceFrac !== null) paceEl.style.left = (paceFrac * 100) + '%';
+        }
+        if (paceLeg) {
+            if (paceFrac !== null && budgetTotal > 0) {
+                const attendu = budgetTotal * paceFrac;
+                const ecart = totalDep - attendu;
+                paceLeg.innerHTML = '<span class="bh-pace-tick"></span> aujourd\'hui · ' + (Math.abs(ecart) < budgetTotal * 0.03
+                    ? 'dans le rythme'
+                    : ecart > 0 ? '<b>' + eur0(ecart) + ' en avance</b> sur le rythme' : eur0(-ecart) + ' de marge sur le rythme');
+            } else paceLeg.innerHTML = '';
         }
         this._refreshBudgetTopCats(depMois);
         this._refreshBudgetRecentTxs();
@@ -9477,9 +9526,100 @@ const app = {
                     </div>
                     <span class="cat-pct-badge ${getBadge(pct)}">${pct}%</span>
                 </div>
-                <div class="budget-cat-progress"><div class="budget-cat-progress-fill" style="width:${fillPct}%;background:${getBar(pct)}"></div></div>
+                <div class="budget-cat-progress-wrap"><div class="budget-cat-progress"><div class="budget-cat-progress-fill" style="width:${fillPct}%;background:${getBar(pct)}"></div></div>${
+                    this._budgetPaceFrac != null && budget > 0 ? `<div class="pace-marker pace-marker--cat" style="left:${this._budgetPaceFrac * 100}%"></div>` : ''}</div>
             </div>`;
         }).join('');
+    },
+
+    /* ── Récurrences « à venir ce mois » ── */
+    _recurrenceDue(r, y, m) {
+        if (!r.actif) return false;
+        if (!r.freq || r.freq === 'mensuel') return true;
+        if (!r.moisRef) return false;                        // trimestriel/annuel sans mois de départ
+        const [ry, rm] = r.moisRef.split('-').map(Number);
+        const diff = (y - ry) * 12 + (m - (rm - 1));
+        if (diff < 0) return false;
+        return r.freq === 'trimestriel' ? diff % 3 === 0 : diff % 12 === 0;
+    },
+
+    _recurrencePayee(r, y, m) {
+        const moisStr = y + '-' + String(m + 1).padStart(2, '0');
+        const mot = (r.nom || '').toLowerCase().split(/\s+/)[0] || '';
+        return (this.data.depenses || []).some(d => {
+            if (!d.date || !d.date.startsWith(moisStr)) return false;
+            if (d.recurrenceId === r.id) return true;
+            if (Math.abs(d.montant - r.montant) > 0.01) return false;
+            // Même montant + (nom dans la note, ou date à ±3 jours du jour prévu) : sans doute déjà passée (ex. import CSV)
+            const jour = parseInt(d.date.slice(8, 10), 10);
+            return (mot.length >= 3 && (d.note || '').toLowerCase().includes(mot)) || Math.abs(jour - (r.jour || 1)) <= 3;
+        });
+    },
+
+    _recurrencesAVenir(y, m) {
+        const today = new Date();
+        const moisCourant = today.getFullYear() * 12 + today.getMonth();
+        if (y * 12 + m < moisCourant) return [];              // mois passés : rien « à venir »
+        return (this.data.recurrences || [])
+            .filter(r => this._recurrenceDue(r, y, m) && !this._recurrencePayee(r, y, m))
+            .sort((a, b) => (a.jour || 1) - (b.jour || 1));
+    },
+
+    _renderAVenir(liste, y, m) {
+        const box = document.getElementById('budget-a-venir');
+        if (!box) return;
+        if (!liste.length) { box.innerHTML = ''; return; }
+        const total = liste.reduce((sum, r) => sum + r.montant, 0);
+        const today = new Date();
+        const isCurrent = today.getFullYear() === y && today.getMonth() === m;
+        box.innerHTML = `
+            <div class="budget-section-header">
+                <span class="budget-section-title">À venir ce mois · ${this.formatCurrency(total)}</span>
+                <button class="budget-section-link" onclick="app.openBudgetAnalyseModal('rec')">Gérer ›</button>
+            </div>
+            <div class="av-list">${liste.map(r => {
+                const enRetard = isCurrent && (r.jour || 1) < today.getDate();
+                return `<div class="av-row">
+                    <div class="av-ico">${this._esc(r.emoji || '🔄')}</div>
+                    <div class="av-info"><div class="av-nom">${this._esc(r.nom)}</div>
+                        <div class="av-date${enRetard ? ' late' : ''}">${enRetard ? 'prévu le ' + (r.jour || 1) + ' · pas encore vu' : 'le ' + (r.jour || 1)}</div></div>
+                    <div class="av-montant">−${this.formatCurrency(r.montant)}</div>
+                    <button class="av-btn" onclick="app.marquerRecurrencePayee('${this._esc(String(r.id))}')" title="Ajouter cette dépense">✓ Payé</button>
+                </div>`;
+            }).join('')}</div>`;
+    },
+
+    marquerRecurrencePayee(id) {
+        const r = (this.data.recurrences || []).find(x => String(x.id) === String(id));
+        if (!r) return;
+        const d = this._budgetMonthDate();
+        const y = d.getFullYear(), m = d.getMonth();
+        const dernierJour = new Date(y, m + 1, 0).getDate();
+        const jour = Math.min(r.jour || 1, dernierJour);
+        const cats = Object.keys(this.data.budgets || {});
+        const catChoisie = r.categorie && cats.includes(r.categorie);
+        let categorie = catChoisie ? r.categorie : this._guessCategory(r.nom || '', '');
+        // Rien de reconnu (_guessCategory renvoie alors la 1re catégorie) : AUTRE plutôt qu'une catégorie au hasard
+        if (!catChoisie && categorie === cats[0] && cats.includes('AUTRE')) categorie = 'AUTRE';
+        const newId = crypto.randomUUID();
+        this.data.depenses.push({
+            id: newId,
+            categorie,
+            montant: r.montant,
+            date: y + '-' + String(m + 1).padStart(2, '0') + '-' + String(jour).padStart(2, '0'),
+            note: r.nom,
+            recurrenceId: r.id,
+            compteId: null
+        });
+        this.save();
+        this._rafraichirApresTransaction();
+        if (catChoisie) {
+            this.notify(`✅ ${r.nom} ajouté aux dépenses (${categorie})`, 'success');
+        } else {
+            // Pas de catégorie définie sur la récurrence : la faire valider tout de suite
+            this.notify(`${r.nom} ajouté — vérifie la catégorie`, 'info');
+            setTimeout(() => this.ouvrirEditDepense(newId), 250);
+        }
     },
 
     /* Analyse détaillée — catégories dépliables */
