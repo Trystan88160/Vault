@@ -1852,3 +1852,32 @@ tbody tr:nth-child(n+5){animation-delay:.14s}
   .pea-a2-cell:nth-child(odd){border-right:1px solid var(--border-color)}
   .pea-a2-value{font-size:1.1rem}
 }
+
+
+/* ── Mobile v2.1 — catégories compactes, icônes Personnaliser / Aide dans l'en-tête ── */
+.topbar-icon-btn{display:none}
+@media (max-width:768px){
+  .tab-customize-bar,.tab-help-btn{display:none!important}
+  .topbar .header-controls{display:flex!important;align-items:center;gap:.4rem;margin-left:auto}
+  .topbar-icon-btn{display:flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;
+    border-radius:50%;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text-secondary);
+    cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  .topbar-icon-btn svg{width:18px;height:18px}
+  .topbar-icon-btn:active{transform:scale(.93)}
+
+  /* Catégories : une seule carte, une ligne par catégorie */
+  .budget-cats-grid{gap:0;background:var(--bg-card);border-radius:18px;border:1px solid var(--border-color);
+    box-shadow:0 6px 22px rgba(99,102,241,.1);overflow:hidden}
+  .budget-cat-card{border-radius:0;border:none;box-shadow:none;padding:.65rem .95rem .7rem;border-bottom:1px solid var(--border-color)}
+  .budget-cat-card:last-child{border-bottom:none}
+  .budget-cat-top{margin-bottom:.4rem;gap:.5rem}
+  .budget-cat-left{gap:.6rem;min-width:0;flex:1}
+  .budget-cat-icon{width:28px;height:28px;border-radius:8px;font-size:.85rem}
+  .budget-cat-text{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem;min-width:0;flex:1}
+  .budget-cat-name{font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .budget-cat-amounts{margin-top:0;white-space:nowrap;font-size:.66rem}
+  .budget-cat-progress{height:5px}
+  .cat-pct-badge{font-size:.78rem;font-weight:700;min-width:2.8rem;text-align:right;color:var(--text-secondary)}
+  .cat-pct-badge.warn{color:var(--warning)}
+  .cat-pct-badge.danger{color:var(--danger)}
+}
