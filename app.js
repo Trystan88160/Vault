@@ -317,7 +317,7 @@ const app = {
         // Fermeture modales budget avec Échap
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
-                ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse'].forEach(id => {
+                ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','modal-cat-detail'].forEach(id => {
                     document.getElementById(id)?.classList.remove('open');
                 });
                 const ov = document.getElementById('budget-modal-overlay');
@@ -565,7 +565,7 @@ const app = {
             // budget-modal-overlay : contenu = les .budget-modal-box.open
             const openBudgetModal = ['modal-budget-comp','modal-budget-regle','modal-budget-rec',
                 'modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap',
-                'modal-all-cats','modal-emoji-cat']
+                'modal-all-cats','modal-emoji-cat','modal-cat-detail']
                 .map(id => document.getElementById(id))
                 .find(el => el?.classList.contains('open'));
             this._budgetMouseDownInside = !!(openBudgetModal && openBudgetModal.contains(e.target));
@@ -1287,7 +1287,7 @@ const app = {
             }
         }
 
-        XLSX.writeFile(wb, 'suivi-financier-backup-' + new Date().toISOString().split('T')[0] + '.xlsx');
+        XLSX.writeFile(wb, 'suivi-financier-backup-' + app._jourLocal() + '.xlsx');
 
         this.data.parametres.lastBackup = Date.now();
         this.save();
@@ -1467,7 +1467,7 @@ const app = {
     },
 
     initDates() {
-        const today = new Date().toISOString().split('T')[0];
+        const today = app._jourLocal();
         const month = today.slice(0, 7);
         document.getElementById('dep-date').value = today;
         document.getElementById('pea-date').value = today;
@@ -2050,7 +2050,7 @@ const app = {
         const moisDispo = [...new Set(this.data.depenses.map(d => d.date.slice(0,7)))].sort().reverse();
         const sel = document.getElementById('rapport-mois');
         if (!sel) return;
-        const now = new Date().toISOString().slice(0,7);
+        const now = app._jourLocal().slice(0, 7);
         sel.innerHTML = moisDispo.map(m => `<option value="${m}" ${m === now ? 'selected' : ''}>${m}</option>`).join('');
     },
     genererRapport() {
@@ -2849,7 +2849,7 @@ const app = {
     _bsAddDepRow() {
         const id = ++this._bsDepRowId;
         const cats = Object.keys(this.data.budgets).sort();
-        const today = new Date().toISOString().slice(0,10);
+        const today = app._jourLocal();
         const row = document.createElement('div');
         row.className = 'bs-dep-row';
         row.id = 'bs-dep-row-' + id;
@@ -2935,7 +2935,7 @@ const app = {
         const overlay = document.getElementById('bs-pat-overlay');
         const comptesDiv = document.getElementById('bs-pat-comptes');
         const dateInput = document.getElementById('bs-pat-date');
-        const today = new Date().toISOString().slice(0,10);
+        const today = app._jourLocal();
         dateInput.value = today;
 
         // Tri par date (les IDs sont des UUIDs, pas des nombres)
@@ -3015,7 +3015,7 @@ const app = {
     },
 
     openBsPEA() {
-        const today = new Date().toISOString().slice(0,10);
+        const today = app._jourLocal();
         document.getElementById('bs-pea-date').value = today;
         document.getElementById('bs-pea-val').value = '';
         document.getElementById('bs-pea-inv').value = '';
@@ -3304,6 +3304,59 @@ const app = {
         this._refreshBudgetHeroAndCats();
     },
 
+    /* ── Détail d'une catégorie : ses dépenses du mois, modifiables ── */
+    openCatDetail(cat) {
+        this._catDetailCat = cat;
+        document.getElementById('modal-all-cats')?.classList.remove('open');
+        this._renderCatDetail();
+        document.getElementById('modal-cat-detail')?.classList.add('open');
+        document.getElementById('budget-modal-overlay')?.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    },
+
+    closeCatDetail() {
+        this._catDetailCat = null;
+        document.getElementById('modal-cat-detail')?.classList.remove('open');
+        const anyOpen = ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats']
+            .some(mid => document.getElementById(mid)?.classList.contains('open'));
+        if (!anyOpen) {
+            document.getElementById('budget-modal-overlay')?.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+    },
+
+    _renderCatDetail() {
+        const cat = this._catDetailCat;
+        const list = document.getElementById('cat-detail-list');
+        if (!cat || !list) return;
+        const d = this._budgetMonthDate();
+        const moisStr = this._jourLocal(d).slice(0, 7);
+        const deps = this.data.depenses
+            .filter(x => x.categorie === cat && (x.date || '').startsWith(moisStr))
+            .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const total = deps.reduce((sum, x) => sum + x.montant, 0);
+        const budget = this.data.budgets[cat] || 0;
+        const moisLabel = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        document.getElementById('cat-detail-icon').textContent = this._getCatEmoji(cat);
+        document.getElementById('cat-detail-title').textContent = cat;
+        document.getElementById('cat-detail-sub').textContent = moisLabel + ' · ' + this.formatCurrency(total)
+            + (budget > 0 ? ' / ' + this.formatCurrency(budget) + (total > budget ? ' · ' + this.formatCurrency(total - budget) + ' de dépassement' : '') : '')
+            + ' · ' + deps.length + ' dépense' + (deps.length > 1 ? 's' : '');
+        if (!deps.length) {
+            list.innerHTML = '<div class="empty-state" style="padding:1.5rem"><div class="empty-state-icon">📭</div><div>Aucune dépense dans cette catégorie ce mois-ci</div></div>';
+            return;
+        }
+        const MOIS = ['jan','fév','mars','avr','mai','juin','juil','août','sep','oct','nov','déc'];
+        list.innerHTML = '<div class="cd-hint">Touche une dépense pour la modifier</div>' + deps.map(x => {
+            const dt = new Date(x.date);
+            return `<div class="budget-tx-card budget-tx-card--edit" onclick="app.ouvrirEditDepense('${this._esc(String(x.id))}')">
+                <div class="budget-tx-info"><div class="budget-tx-name">${this._esc(x.note || cat)}</div></div>
+                <div class="budget-tx-date">${dt.getDate()} ${MOIS[dt.getMonth()]}</div>
+                <div class="budget-tx-amount">−${this.formatCurrency(x.montant)}</div>
+            </div>`;
+        }).join('');
+    },
+
     openAllCatsModal() {
         this._renderAllCatsModal();
         document.getElementById('modal-all-cats')?.classList.add('open');
@@ -3351,7 +3404,7 @@ const app = {
             const fillPct = budget > 0 ? Math.min(spent / budget * 100, 100) : (spent > 0 ? 100 : 0);
             const emoji = this._getCatEmoji(cat);
             const catName = cat.replace(/^\p{Emoji}\s*/u, '') || cat;
-            return `<div class="budget-cat-card">
+            return `<div class="budget-cat-card budget-cat-card--click" onclick="app.openCatDetail(decodeURIComponent('${encodeURIComponent(cat)}'))">
                 <div class="budget-cat-top">
                     <div class="budget-cat-left">
                         <div class="budget-cat-icon">${emoji}</div>
@@ -3598,7 +3651,7 @@ const app = {
             nom.value     = '';
             type.value    = 'courant';
             solde.value   = '';
-            date.value    = new Date().toISOString().slice(0, 10);
+            date.value    = app._jourLocal();
         }
         overlay.classList.add('open');
     },
@@ -3677,7 +3730,7 @@ const app = {
         const val = parseFloat(input?.value);
         if (isNaN(val)) { this.notify('Montant invalide', 'error'); return; }
         c.soldeReel = val;
-        c.dateSoldeReel = new Date().toISOString().slice(0, 10);
+        c.dateSoldeReel = app._jourLocal();
         this.save();
         this.refreshPointage();
         this.notify('Solde réel mis à jour', 'success');
@@ -4099,6 +4152,7 @@ const app = {
         this.refreshCharts();
         this.refreshHistoriqueRevenus?.();
         this._refreshBudgetHeroAndCats?.();
+        if (this._catDetailCat && document.getElementById('modal-cat-detail')?.classList.contains('open')) this._renderCatDetail();
     },
 
     ouvrirEditRevenu(id) {
@@ -4172,6 +4226,7 @@ const app = {
             () => {
                 this.data.depenses = this.data.depenses.filter(d => String(d.id) !== String(id));
                 this.save();
+                this._rafraichirApresTransaction();
                 this.afficherDepenses();
                 this.refreshStatsDepenses();
                 this.analyseDepenses();
@@ -4213,7 +4268,7 @@ const app = {
         if (note) note.value = '';
         if (date) {
             const now = new Date();
-            date.value = now.toISOString().split('T')[0];
+            date.value = app._jourLocal(now);
         }
         // Peupler le select compte
         const compteGroup = document.getElementById('rev-compte-group');
@@ -7623,7 +7678,7 @@ const app = {
                     <select class="form-select" id="rec-freq" onchange="document.getElementById('rec-mois-wrap').style.display = this.value === 'mensuel' ? 'none' : ''"><option value="mensuel">Mensuel</option><option value="trimestriel">Trimestriel</option><option value="annuel">Annuel</option></select>
                 </div>
                 <div class="form-group" id="rec-mois-wrap" style="display:none"><label class="form-label">Premier mois de prélèvement</label>
-                    <input type="month" class="form-input" id="rec-mois" value="${new Date().toISOString().slice(0, 7)}">
+                    <input type="month" class="form-input" id="rec-mois" value="${app._jourLocal().slice(0, 7)}">
                 </div>
                 <div class="form-group"><label class="form-label">Catégorie (quand elle passe)</label>
                     <select class="form-select" id="rec-cat"><option value="">Deviner automatiquement</option>${
@@ -7649,7 +7704,7 @@ const app = {
         const freq = document.getElementById('rec-freq').value;
         if (!nom || !montant) { this.notify('Remplir nom et montant', 'error'); return; }
         const rec = { id: crypto.randomUUID(), nom, emoji, montant, jour, freq, actif: true };
-        if (freq !== 'mensuel') rec.moisRef = document.getElementById('rec-mois')?.value || new Date().toISOString().slice(0, 7);
+        if (freq !== 'mensuel') rec.moisRef = document.getElementById('rec-mois')?.value || app._jourLocal().slice(0, 7);
         const recCat = document.getElementById('rec-cat')?.value;
         if (recCat) rec.categorie = recCat;
         this.data.recurrences.push(rec);
@@ -8112,7 +8167,7 @@ const app = {
             const totalInvesti = lignes.reduce((s, l) => s + (l.parts * l.pru), 0);
             const gain = totalValeur - totalInvesti;
             const perf = totalInvesti > 0 ? ((gain / totalInvesti) * 100).toFixed(2) : '0';
-            const today = new Date().toISOString().split('T')[0];
+            const today = app._jourLocal();
             const entry = { id: crypto.randomUUID(), date: today, valeur: totalValeur, investi: totalInvesti,
                             gainPerte: gain, performance: perf, note: '📡 Finnhub' };
             const idx = this.data.suiviPEA.findIndex(p => p.date === today);
@@ -8760,14 +8815,14 @@ const app = {
     fermerResumeHebdo() {
         const card = document.getElementById('resume-hebdo-card');
         if (card) card.style.display = 'none';
-        localStorage.setItem('resumeHebdoFerme', new Date().toISOString().split('T')[0]);
+        localStorage.setItem('resumeHebdoFerme', app._jourLocal());
     },
 
     checkResumeHebdo() {
         const today     = new Date();
         const dayOfWeek = today.getDay();
         const fermeKey  = localStorage.getItem('resumeHebdoFerme');
-        const fermeToday = fermeKey === today.toISOString().split('T')[0];
+        const fermeToday = fermeKey === app._jourLocal(today);
         if (fermeToday) return;
 
         this.genererResumeHebdo();
@@ -8785,13 +8840,13 @@ const app = {
         const fmtDate = (d) => d.toLocaleDateString('fr-FR', {day:'numeric', month:'short'});
         const periode = `${fmtDate(lundiPrev)} — ${fmtDate(dimanche)}`;
 
-        const lundiPrevStr  = lundiPrev.toISOString().split('T')[0];
-        const dimancheStr   = dimanche.toISOString().split('T')[0];
+        const lundiPrevStr  = app._jourLocal(lundiPrev);
+        const dimancheStr   = app._jourLocal(dimanche);
         const depsSemaine   = this.data.depenses.filter(d => d.date >= lundiPrevStr && d.date <= dimancheStr);
         const totalSemaine  = depsSemaine.reduce((s,d) => s + d.montant, 0);
 
         const lundi2Prev = new Date(lundiPrev); lundi2Prev.setDate(lundiPrev.getDate() - 7);
-        const lundi2Str  = lundi2Prev.toISOString().split('T')[0];
+        const lundi2Str  = app._jourLocal(lundi2Prev);
         const deps2Sem   = this.data.depenses.filter(d => d.date >= lundi2Str && d.date < lundiPrevStr);
         const total2Sem  = deps2Sem.reduce((s,d) => s + d.montant, 0);
         const deltaPerc  = total2Sem > 0 ? ((totalSemaine - total2Sem) / total2Sem * 100).toFixed(0) : null;
@@ -8822,7 +8877,7 @@ const app = {
 
         const budget = Object.values(this.data.budgets).reduce((s,v)=>s+v,0);
         if (budget > 0) {
-            const mois = today.toISOString().slice(0,7);
+            const mois = app._jourLocal(today).slice(0, 7);
             const depsMois = this.data.depenses.filter(d=>d.date.startsWith(mois)).reduce((s,d)=>s+d.montant,0);
             const ratio = depsMois / budget * 100;
             const col   = ratio > 90 ? 'var(--danger)' : ratio > 70 ? 'var(--warning)' : 'var(--success)';
@@ -9397,7 +9452,7 @@ const app = {
         if (e.target.id !== 'budget-modal-overlay') return;
         // Fix : ignore si le mousedown a commencé à l'intérieur d'une modal ouverte
         if (this._budgetMouseDownInside) return;
-        ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats','modal-emoji-cat'].forEach(id => {
+        ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats','modal-emoji-cat','modal-cat-detail'].forEach(id => {
             document.getElementById(id)?.classList.remove('open');
         });
         document.getElementById('budget-modal-overlay')?.classList.remove('open');
@@ -9518,7 +9573,7 @@ const app = {
             const fillPct = budget > 0 ? Math.min(spent / budget * 100, 100) : (spent > 0 ? 100 : 0);
             const emoji = this._getCatEmoji(cat);
             const catName = cat.replace(/^\p{Emoji}\s*/u, '') || cat;
-            return `<div class="budget-cat-card">
+            return `<div class="budget-cat-card budget-cat-card--click" onclick="app.openCatDetail(decodeURIComponent('${encodeURIComponent(cat)}'))">
                 <div class="budget-cat-top">
                     <div class="budget-cat-left">
                         <div class="budget-cat-icon">${emoji}</div>
@@ -9647,10 +9702,10 @@ const app = {
             const debutEl = document.getElementById('budget-an-debut');
             const finEl   = document.getElementById('budget-an-fin');
             const now = new Date();
-            if (finEl   && !finEl.value)   finEl.value   = now.toISOString().slice(0,10);
+            if (finEl   && !finEl.value)   finEl.value   = app._jourLocal(now);
             if (debutEl && !debutEl.value) {
                 const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-                debutEl.value = firstDay.toISOString().slice(0,10);
+                debutEl.value = app._jourLocal(firstDay);
             }
         }
         this._renderBudgetAnCats();

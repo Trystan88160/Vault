@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh40">
+    <link rel="stylesheet" href="app.css?v=enh41">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -624,6 +624,19 @@
 </div>
 
 <!-- MODAL TOUTES LES CATÉGORIES -->
+<div class="budget-modal-box" id="modal-cat-detail" style="max-width:620px">
+  <div class="budget-modal-header">
+    <div class="budget-modal-header-left">
+      <div class="budget-modal-icon" id="cat-detail-icon" style="background:var(--bg-secondary)">📦</div>
+      <div><div class="budget-modal-title" id="cat-detail-title">Catégorie</div><div class="budget-modal-subtitle" id="cat-detail-sub">—</div></div>
+    </div>
+    <button class="budget-modal-close" onclick="app.closeCatDetail()">✕</button>
+  </div>
+  <div class="budget-modal-body">
+    <div id="cat-detail-list"></div>
+  </div>
+</div>
+
 <div class="budget-modal-box" id="modal-all-cats" style="max-width:860px">
   <div class="budget-modal-header">
     <div class="budget-modal-header-left">
@@ -1420,7 +1433,7 @@
 </div>
 
 
-<script src="app.js?v=enh40" defer></script>
+<script src="app.js?v=enh41" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">
