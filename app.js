@@ -949,7 +949,116 @@ const app = {
             } else if (pushLocal) {
                 this._syncToSupabase();
             }
+            /* Copie du jour (état à l'ouverture, avant toute modif) */
+            if (cloudOk) this._snapshotDuJour();
         }
+    },
+
+    /* ── Historique : une copie complète par jour, 30 jours glissants ── */
+    _historyTable: 'suivi_history',
+    _historyJours: 30,
+
+    _jourLocal(d = new Date()) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    },
+
+    async _historyFetch(method, query, body, prefer) {
+        const { url, key } = this._sb;
+        const headers = {
+            'apikey': key,
+            'Authorization': `Bearer ${this._auth.token || key}`,
+            'Content-Type': 'application/json',
+        };
+        if (prefer) headers['Prefer'] = prefer;
+        const r = await fetch(`${url}/rest/v1/${this._historyTable}?${query}`, {
+            method, headers, body: body ? JSON.stringify(body) : undefined
+        });
+        return r;
+    },
+
+    async _snapshotDuJour(kind = 'auto') {
+        const userId = this._auth.user?.id;
+        if (!userId) return;
+        const jour = this._jourLocal();
+        const flagKey = 'vaultSnapDay_' + userId;
+        if (kind === 'auto') {
+            try { if (localStorage.getItem(flagKey) === jour) return; } catch(e) {}
+        }
+        try {
+            const r = await this._historyFetch('POST', 'select=id', {
+                user_id: userId,
+                jour,
+                kind,
+                nb_depenses: (this.data.depenses || []).length,
+                data: this.data
+            }, 'return=minimal');
+            /* 409 = copie automatique du jour déjà faite (autre appareil) → OK */
+            if (r.ok || r.status === 409) {
+                if (kind === 'auto') try { localStorage.setItem(flagKey, jour); } catch(e) {}
+                /* Nettoyage des copies de plus de 30 jours */
+                const limite = new Date(); limite.setDate(limite.getDate() - this._historyJours);
+                this._historyFetch('DELETE', `user_id=eq.${userId}&jour=lt.${this._jourLocal(limite)}`).catch(() => {});
+                return true;
+            }
+            console.warn('Historique : copie impossible', r.status, await r.text());
+        } catch(e) {
+            console.warn('Historique : copie impossible', e.message);
+        }
+        return false;
+    },
+
+    async refreshHistorique() {
+        const box = document.getElementById('history-list');
+        if (!box || !this._auth.user?.id) return;
+        box.innerHTML = '<div class="sp-mini-label">Chargement…</div>';
+        try {
+            const r = await this._historyFetch('GET',
+                `user_id=eq.${this._auth.user.id}&select=id,jour,kind,nb_depenses,created_at&order=created_at.desc`);
+            if (!r.ok) throw new Error(r.status === 404 ? 'table suivi_history absente dans Supabase' : 'HTTP ' + r.status);
+            const rows = await r.json();
+            if (!rows.length) {
+                box.innerHTML = '<div class="sp-mini-label">Aucune copie pour l\'instant — la première est faite à la prochaine ouverture de Vault.</div>';
+                return;
+            }
+            box.innerHTML = rows.map(h => {
+                const d = new Date(h.created_at);
+                const quand = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+                    + ' · ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                const tag = h.kind === 'avant-restauration' ? ' <span style="color:var(--warning)">(avant restauration)</span>' : '';
+                return `<div style="display:flex;align-items:center;gap:.5rem;padding:.45rem 0;border-bottom:1px solid var(--border-color);font-size:.78rem">
+                    <div style="flex:1">${app._esc(quand)}${tag}<div style="font-size:.68rem;color:var(--text-tertiary)">${Number(h.nb_depenses) || 0} dépenses</div></div>
+                    <button class="btn btn-secondary btn-small" onclick="app.restaurerHistorique(${Number(h.id)})">Restaurer</button>
+                </div>`;
+            }).join('');
+        } catch(e) {
+            box.innerHTML = `<div class="sp-mini-label" style="color:var(--danger)">Historique indisponible : ${app._esc(e.message)}</div>`;
+        }
+    },
+
+    restaurerHistorique(id) {
+        this.showModal(
+            'Restaurer cette copie ?',
+            'Tes données actuelles seront remplacées par cette copie. Une copie de l\'état actuel est gardée dans l\'historique : tu pourras revenir en arrière.',
+            async () => {
+                try {
+                    const r = await this._historyFetch('GET', `id=eq.${Number(id)}&select=data`);
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    const snap = (await r.json())?.[0]?.data;
+                    if (!snap) throw new Error('copie introuvable');
+                    const ok = await this._snapshotDuJour('avant-restauration');
+                    if (!ok) throw new Error('impossible de sauvegarder l\'état actuel, restauration annulée');
+                    this._applyLoaded(snap);
+                    localStorage.setItem('suiviFinancier', JSON.stringify(this.data));
+                    localStorage.setItem('suiviFinancierTime', Date.now().toString());
+                    localStorage.setItem('suiviFinancierDirty', '1');
+                    await this._syncToSupabase();
+                    this.notify('✅ Copie restaurée', 'success');
+                    setTimeout(() => location.reload(), 600);
+                } catch(e) {
+                    this.notify('Restauration échouée : ' + e.message, 'error');
+                }
+            }
+        );
     },
 
     _applyLoaded(loaded) {
