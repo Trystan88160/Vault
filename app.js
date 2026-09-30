@@ -8899,12 +8899,40 @@ const app = {
         if (this._importRows.length === 0) return false;
 
         this._importRows.sort((a,b) => b.date.localeCompare(a.date));
+        const ndup = this._markImportDuplicates();
 
         const nd = this._importRows.filter(r=>r.type==='debit').length;
         const nc = this._importRows.filter(r=>r.type==='credit').length;
-        this.notify(this._importRows.length + ' transactions trouvées (' + nd + ' débits, ' + nc + ' crédits)', 'info');
+        this.notify(this._importRows.length + ' transactions trouvées (' + nd + ' débits, ' + nc + ' crédits)'
+            + (ndup ? ' · ' + ndup + ' déjà présente' + (ndup > 1 ? 's' : '') + ', décochée' + (ndup > 1 ? 's' : '') : ''), 'info');
         this._renderImportPreview();
         return true;
+    },
+
+    // Doublon = dépense existante avec la même date et le même montant.
+    // Chaque dépense existante ne « couvre » qu'une ligne importée : deux achats
+    // identiques le même jour restent importables si un seul existe déjà.
+    _markImportDuplicates() {
+        const key = (date, montant) => date + '|' + Math.round(Math.abs(montant) * 100);
+        const existing = new Map();
+        (this.data.depenses || []).forEach(d => {
+            if (!d.date) return;
+            const k = key(d.date.slice(0, 10), d.montant || 0);
+            if (!existing.has(k)) existing.set(k, []);
+            existing.get(k).push(d);
+        });
+        let n = 0;
+        this._importRows.forEach(row => {
+            row.duplicate = null;
+            if (row.type !== 'debit') return;
+            const list = existing.get(key(row.date, row.montant));
+            if (list && list.length) {
+                row.duplicate = list.shift();
+                row.selected = false;
+                n++;
+            }
+        });
+        return n;
     },
 
     _nettoyerLibelle(raw) {
@@ -8974,12 +9002,18 @@ const app = {
 
         const cats  = this.data.budgets ? Object.keys(this.data.budgets) : ['AUTRE'];
         const total = this._importRows.length;
-        const nd    = this._importRows.filter(r=>r.type==='debit').length;
-        title.textContent = total + ' transactions trouvées · ' + nd + ' débits pré-cochés · Modifie la note si besoin avant d\'importer';
+        const nd    = this._importRows.filter(r=>r.type==='debit' && !r.duplicate).length;
+        const ndup  = this._importRows.filter(r=>r.duplicate).length;
+        title.textContent = total + ' transactions trouvées · ' + nd + ' débits pré-cochés'
+            + (ndup ? ' · ' + ndup + ' déjà dans Vault (décochées)' : '')
+            + ' · Modifie la note si besoin avant d\'importer';
 
         body.innerHTML = this._importRows.map((row, i) => {
             const color = row.type === 'debit' ? 'var(--danger)' : 'var(--success)';
             const sign  = row.type === 'debit' ? '-' : '+';
+            const dupBadge = row.duplicate
+                ? '<span title="Déjà dans Vault : '+this._esc((row.duplicate.note || row.duplicate.categorie || '') + ' — ' + row.duplicate.date)+'" style="display:inline-block;margin-top:.2rem;background:rgba(255,152,0,.15);color:var(--warning);border-radius:6px;padding:.15rem .4rem;font-size:.62rem;font-family:DM Mono,monospace;font-weight:600">DÉJÀ LÀ</span>'
+                : '';
             const badge = row.type === 'debit'
                 ? '<span style="background:rgba(244,67,54,.1);color:var(--danger);border-radius:6px;padding:.15rem .4rem;font-size:.62rem;font-family:DM Mono,monospace;font-weight:600">DÉBIT</span>'
                 : '<span style="background:rgba(0,200,83,.1);color:var(--success);border-radius:6px;padding:.15rem .4rem;font-size:.62rem;font-family:DM Mono,monospace;font-weight:600">CRÉDIT</span>';
@@ -8987,7 +9021,7 @@ const app = {
             const noteEsc  = this._esc(row.note);
             const netEsc   = this._esc(row.libelleNettoye);
             const catOpts  = cats.map(c => '<option value="'+c+'" '+(c===row.categorie?'selected':'')+'>'+c+'</option>').join('');
-            return '<tr style="'+(row.type==='credit'?'opacity:.6':'')+'">'+
+            return '<tr style="'+(row.type==='credit' || row.duplicate ?'opacity:.6':'')+'">'+
                 '<td><input type="checkbox" '+(row.selected?'checked':'')+' onchange="app._importRows['+i+'].selected=this.checked;app._updateImportCount()" style="accent-color:var(--accent-primary)"></td>'+
                 '<td style="font-family:DM Mono,monospace;font-size:.75rem;white-space:nowrap">'+row.date+'</td>'+
                 '<td style="max-width:200px">'+
@@ -8996,7 +9030,7 @@ const app = {
                 '</td>'+
                 '<td><input type="text" value="'+noteEsc+'" oninput="app._importRows['+i+'].note=this.value" style="width:140px;padding:.3rem .5rem;font-size:.75rem;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-family:inherit"></td>'+
                 '<td style="font-weight:700;color:'+color+';font-family:DM Mono,monospace;white-space:nowrap">'+sign+this.formatCurrency(row.montant)+'</td>'+
-                '<td>'+badge+'</td>'+
+                '<td>'+badge+(dupBadge ? '<br>'+dupBadge : '')+'</td>'+
                 '<td><select data-import-cat style="padding:.25rem .4rem;font-size:.72rem;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary)" onchange="app._importRows['+i+'].categorie=this.value">'+catOpts+'</select></td>'+
                 '</tr>';
         }).join('');
