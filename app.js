@@ -2833,12 +2833,128 @@ const app = {
     openBsDepenses() {
         this._bsDepRows = [];
         this._bsDepRowId = 0;
+        document.getElementById('budget-dep-menu')?.classList.remove('open');
         const overlay = document.getElementById('bs-dep-overlay');
         const body = document.getElementById('bs-dep-rows');
         body.innerHTML = '';
+        this._renderDepShortcuts();
         this._bsAddDepRow();
         overlay.classList.add('open');
         document.body.style.overflow = 'hidden';
+        // Clavier numérique tout de suite (focus dans le même geste que le clic : nécessaire sur iPhone)
+        document.getElementById('bs-dep-montant-1')?.focus({ preventScroll: true });
+    },
+
+    /* ── Saisie rapide : catégories les plus utilisées, apprentissage, raccourcis ── */
+    _normNote(s) {
+        return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    },
+
+    _depRecentes(jours = 120) {
+        const lim = new Date(); lim.setDate(lim.getDate() - jours);
+        const limStr = this._jourLocal(lim);
+        return (this.data.depenses || []).filter(d => (d.date || '') >= limStr);
+    },
+
+    _catsParUsage() {
+        const cats = Object.keys(this.data.budgets || {});
+        const count = {};
+        this._depRecentes().forEach(d => { count[d.categorie] = (count[d.categorie] || 0) + 1; });
+        return cats.sort((a, b) => (count[b] || 0) - (count[a] || 0) || a.localeCompare(b));
+    },
+
+    // Catégorie devinée d'après tes dépenses passées ayant une note proche
+    _devinerCategorie(note) {
+        const n = this._normNote(note);
+        if (n.length < 3) return null;
+        const cats = Object.keys(this.data.budgets || {});
+        const premierMot = n.split(' ')[0];
+        const votes = {};
+        let total = 0;
+        const deps = (this.data.depenses || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        for (const d of deps) {
+            const dn = this._normNote(d.note);
+            if (!dn || !cats.includes(d.categorie)) continue;
+            if (dn === n || dn.startsWith(n) || n.startsWith(dn) || (premierMot.length >= 3 && dn.split(' ').includes(premierMot))) {
+                votes[d.categorie] = (votes[d.categorie] || 0) + 1;
+                if (++total >= 10) break;
+            }
+        }
+        const best = Object.entries(votes).sort((a, b) => b[1] - a[1])[0];
+        return best ? best[0] : null;
+    },
+
+    // 4 dépenses habituelles : même note + même montant, au moins 2 fois ces 4 derniers mois
+    _raccourcisDepenses() {
+        const groupes = {};
+        this._depRecentes().forEach(d => {
+            const n = this._normNote(d.note);
+            if (!n) return;
+            const k = n + '|' + Math.round(d.montant * 100);
+            if (!groupes[k]) groupes[k] = { note: d.note, montant: d.montant, categorie: d.categorie, count: 0, last: '' };
+            const g = groupes[k];
+            g.count++;
+            if ((d.date || '') > g.last) { g.last = d.date; g.note = d.note; g.categorie = d.categorie; }
+        });
+        return Object.values(groupes).filter(g => g.count >= 2)
+            .sort((a, b) => b.count - a.count || b.last.localeCompare(a.last)).slice(0, 4);
+    },
+
+    _renderDepShortcuts() {
+        const box = document.getElementById('bs-dep-shortcuts');
+        if (!box) return;
+        const rc = this._raccourcisDepenses();
+        this._bsRaccourcis = rc;
+        box.innerHTML = rc.length ? `<div class="qa-label">Tes dépenses habituelles</div>
+            <div class="qa-shortcuts">${rc.map((r, i) => `<button type="button" class="qa-shortcut" onclick="app._appliquerRaccourci(${i})">
+                <span class="qa-sc-note">${this._esc(r.note)}</span><span class="qa-sc-amt">${this.formatCurrency(r.montant)}</span>
+                <span class="qa-sc-cat">${this._esc(r.categorie)}</span></button>`).join('')}</div>` : '';
+    },
+
+    _appliquerRaccourci(i) {
+        const r = (this._bsRaccourcis || [])[i];
+        if (!r) return;
+        // Remplit la dernière ligne vide, sinon en ajoute une
+        const rows = [...document.querySelectorAll('#bs-dep-rows .bs-dep-row')].reverse();
+        let row = rows.find(el => !document.getElementById('bs-dep-montant-' + el.id.replace('bs-dep-row-', ''))?.value);
+        if (!row) { this._bsAddDepRow(); const all = document.querySelectorAll('#bs-dep-rows .bs-dep-row'); row = all[all.length - 1]; }
+        const id = row.id.replace('bs-dep-row-', '');
+        document.getElementById('bs-dep-montant-' + id).value = r.montant;
+        document.getElementById('bs-dep-note-' + id).value = r.note;
+        this._choisirCatLigne(id, r.categorie, false);
+        document.activeElement?.blur?.();
+        const btn = document.getElementById('bs-dep-save-btn');
+        if (btn) { btn.classList.remove('qa-pulse'); void btn.offsetWidth; btn.classList.add('qa-pulse'); }
+    },
+
+    _choisirCatLigne(id, cat, devinee) {
+        const sel = document.getElementById('bs-dep-cat-' + id);
+        if (sel) sel.value = cat;
+        document.querySelectorAll('#bs-dep-row-' + id + ' .qa-chip').forEach(ch => ch.classList.toggle('active', ch.dataset.cat === cat));
+        const hint = document.getElementById('bs-dep-hint-' + id);
+        if (hint) hint.textContent = devinee ? '✨ ' + cat + ' — d\'après tes dépenses précédentes' : '';
+        const row = document.getElementById('bs-dep-row-' + id);
+        if (row) row.dataset.catManuelle = devinee ? '' : '1';
+        // Faire défiler la rangée de pastilles seulement si la pastille choisie est hors de vue
+        const chip = document.querySelector('#bs-dep-row-' + id + ' .qa-chip.active');
+        const bar = chip?.parentElement;
+        if (chip && bar) {
+            const c = chip.getBoundingClientRect(), b = bar.getBoundingClientRect();
+            if (c.left < b.left) bar.scrollLeft += c.left - b.left - 8;
+            else if (c.right > b.right) bar.scrollLeft += c.right - b.right + 8;
+        }
+    },
+
+    _onDepNoteInput(id) {
+        const row = document.getElementById('bs-dep-row-' + id);
+        if (!row || row.dataset.catManuelle === '1') return;       // choix manuel : on n'y touche plus
+        const cat = this._devinerCategorie(document.getElementById('bs-dep-note-' + id)?.value);
+        if (cat) this._choisirCatLigne(id, cat, true);
+    },
+
+    _onDepKey(e) {
+        if (e.key === 'Enter') { e.preventDefault(); this.saveBsDepenses(); }
     },
 
     closeBsDepenses() {
@@ -2860,20 +2976,26 @@ const app = {
         const compteSelectHtml = hasComptes
             ? `<div style="margin-top:.35rem"><select class="bs-input" id="bs-dep-compte-${id}" style="width:100%;font-size:.75rem">${comptesSingle ? '' : '<option value="">— Aucun compte —</option>'}${comptesOpts}</select></div>`
             : '';
+        const catsUsage = this._catsParUsage();
+        const catDefaut = catsUsage[0] || cats[0] || '';
         row.innerHTML = `
-            <div class="bs-dep-row-label"># ${id}</div>
-            ${id > 1 ? `<button class="bs-remove-btn" onclick="app._bsRemoveDepRow(${id})">✕</button>` : ''}
-            <div class="bs-dep-grid">
-                <select class="bs-input" id="bs-dep-cat-${id}">
-                    ${cats.map(c => `<option value="${c}">${c}</option>`).join('')}
-                </select>
-                <input type="number" class="bs-input bs-input-amount" id="bs-dep-montant-${id}" placeholder="0,00" step="0.01">
+            ${id > 1 ? `<div class="bs-dep-row-label"># ${id}</div><button class="bs-remove-btn" onclick="app._bsRemoveDepRow(${id})">✕</button>` : ''}
+            <div class="qa-amount-wrap">
+                <input type="number" inputmode="decimal" class="bs-input qa-amount" id="bs-dep-montant-${id}" placeholder="0,00" step="0.01" onkeydown="app._onDepKey(event)">
+                <span class="qa-euro">€</span>
             </div>
-            <div class="bs-dep-grid2">
-                <input type="text" class="bs-input" id="bs-dep-note-${id}" placeholder="Note…">
-                <input type="date" class="bs-input" id="bs-dep-date-${id}" value="${today}" style="width:140px">
+            <input type="text" class="bs-input qa-note" id="bs-dep-note-${id}" placeholder="Quoi ? (Leclerc, Tabac, Plein…)" autocomplete="off"
+                oninput="app._onDepNoteInput(${id})" onkeydown="app._onDepKey(event)">
+            <div class="qa-chips">${catsUsage.map(c => `<button type="button" class="qa-chip${c === catDefaut ? ' active' : ''}" data-cat="${this._esc(c)}"
+                onclick="app._choisirCatLigne(${id}, this.dataset.cat, false)">${this._esc(c)}</button>`).join('')}</div>
+            <div class="qa-hint" id="bs-dep-hint-${id}"></div>
+            <select class="bs-input" id="bs-dep-cat-${id}" style="display:none">
+                ${cats.map(c => `<option value="${this._esc(c)}"${c === catDefaut ? ' selected' : ''}>${this._esc(c)}</option>`).join('')}
+            </select>
+            <div class="qa-meta">
+                <input type="date" class="bs-input" id="bs-dep-date-${id}" value="${today}">
+                ${compteSelectHtml}
             </div>
-            ${compteSelectHtml}
         `;
         const body = document.getElementById('bs-dep-rows');
 
@@ -2891,6 +3013,7 @@ const app = {
         }
 
         this._bsUpdateDepSaveLabel();
+        if (id > 1) document.getElementById('bs-dep-montant-' + id)?.focus({ preventScroll: true });
     },
 
     _bsRemoveDepRow(id) {
@@ -2921,11 +3044,7 @@ const app = {
         });
         if (added === 0) { this.notify('Aucun montant saisi', 'error'); return; }
         this.save();
-        this.afficherDepenses();
-        this.refreshStatsDepenses();
-        this.analyseDepenses();
-        this.refreshCharts();
-        this.refreshPointage();
+        this._rafraichirApresTransaction();
         this.closeBsDepenses();
         this.notify(`${added} dépense${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''}`, 'success');
         if (this._obOverlay && this._obOverlay.style.display === 'none') setTimeout(() => this._obAutoResume(true), 300);

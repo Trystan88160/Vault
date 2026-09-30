@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh41">
+    <link rel="stylesheet" href="app.css?v=enh42">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -337,10 +337,9 @@
   <div class="budget-topbar-right">
     <button class="btn-vault-secondary" onclick="app.openBsRevenus()">↑ Revenu</button>
     <div class="budget-dep-wrap" id="budget-dep-wrap">
-      <button class="btn-vault-primary" onclick="app.toggleBudgetDepDropdown()">＋ Dépense <span style="font-size:.6rem;opacity:.75">▾</span></button>
+      <button class="btn-vault-primary" onclick="app.openBsDepenses()">＋ Dépense</button>
+      <button class="btn-vault-secondary budget-more-btn" onclick="app.toggleBudgetDepDropdown()" title="Plus d'options" aria-label="Plus d'options">⋯</button>
       <div class="budget-dropdown-menu" id="budget-dep-menu">
-        <div class="budget-dropdown-item" onclick="app.openBsDepenses()"><span>➕</span> Nouvelle dépense</div>
-        <div class="budget-dropdown-sep"></div>
         <div class="budget-dropdown-item" onclick="app.toggleBudgetsPanel()"><span>⚙</span> Gérer les catégories</div>
         <div class="budget-dropdown-item" onclick="app.toggleImportBancaire()"><span>🏦</span> Import CSV bancaire</div>
       </div>
@@ -1433,7 +1432,7 @@
 </div>
 
 
-<script src="app.js?v=enh41" defer></script>
+<script src="app.js?v=enh42" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">
@@ -1492,7 +1491,7 @@
     <div class="bs-handle"><div class="bs-handle-bar"></div></div>
     <div class="bs-header">
       <div>
-        <div class="bs-subtitle">Ajout multiple</div>
+        <div class="bs-subtitle">Nouvelle dépense</div>
         <div class="bs-title">Dépenses</div>
       </div>
       <div style="display:flex;gap:.5rem;align-items:center">
@@ -1500,7 +1499,10 @@
         <button onclick="app.closeBsDepenses()" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;color:var(--text-secondary);font-size:.8rem">✕</button>
       </div>
     </div>
-    <div class="bs-body" id="bs-dep-rows"></div>
+    <div class="bs-body">
+      <div id="bs-dep-shortcuts"></div>
+      <div id="bs-dep-rows"></div>
+    </div>
     <div class="bs-footer">
       <button class="bs-btn-cancel" onclick="app.closeBsDepenses()">Annuler</button>
       <button class="bs-btn-save" id="bs-dep-save-btn" onclick="app.saveBsDepenses()">Enregistrer</button>
