@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh36">
+    <link rel="stylesheet" href="app.css?v=enh37">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -207,6 +207,9 @@
       <span id="sync-dot" class="sync-dot"></span>
       <span id="sync-label" class="sync-label">cloud</span>
     </div>
+    <!-- Icônes mobiles : agissent sur l'onglet affiché -->
+    <button class="topbar-icon-btn" id="tb-customize" onclick="app.openTabCustomizer(app._currentTab || 'dashboard')" title="Personnaliser l'onglet" aria-label="Personnaliser l'onglet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+    <button class="topbar-icon-btn" onclick="app.openHelp(app._currentTab || 'dashboard')" title="Aide" aria-label="Aide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6M12 17.2h.01"/></svg></button>
     <div id="user-badge" onclick="app.toggleSettings()" title="Paramètres" class="topbar-avatar">
       <div class="user-avatar" id="user-avatar">?</div>
     </div>
@@ -1401,7 +1404,7 @@
 </div>
 
 
-<script src="app.js?v=enh36" defer></script>
+<script src="app.js?v=enh37" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">

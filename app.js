@@ -1487,6 +1487,9 @@ const app = {
         const tab = document.getElementById('tab-' + realName);
         if (tab) tab.classList.add('active');
         document.querySelectorAll('.mtb-item').forEach(t => t.classList.toggle('active', t.dataset.tab === realName));
+        this._currentTab = realName;
+        const tbCustom = document.getElementById('tb-customize');
+        if (tbCustom) tbCustom.style.visibility = ['dashboard', 'patrimoine', 'bilan'].includes(realName) ? '' : 'hidden';
         document.querySelectorAll('.nav-tab').forEach(t => {
             if (t.getAttribute('onclick') && t.getAttribute('onclick').includes("'" + realName + "'")) t.classList.add('active');
         });
@@ -3352,7 +3355,7 @@ const app = {
                 <div class="budget-cat-top">
                     <div class="budget-cat-left">
                         <div class="budget-cat-icon">${emoji}</div>
-                        <div><div class="budget-cat-name">${catName}</div><div class="budget-cat-amounts">${this.formatCurrency(spent)} / ${this.formatCurrency(budget)}</div></div>
+                        <div class="budget-cat-text"><div class="budget-cat-name">${this._esc(catName)}</div><div class="budget-cat-amounts">${this.formatCurrency(spent)} / ${this.formatCurrency(budget)}</div></div>
                     </div>
                     <span class="cat-pct-badge ${getBadge(pct)}">${pct}%</span>
                 </div>
@@ -9387,7 +9390,7 @@ const app = {
                 <div class="budget-cat-top">
                     <div class="budget-cat-left">
                         <div class="budget-cat-icon">${emoji}</div>
-                        <div><div class="budget-cat-name">${catName}</div><div class="budget-cat-amounts">${this.formatCurrency(spent)} / ${this.formatCurrency(budget)}</div></div>
+                        <div class="budget-cat-text"><div class="budget-cat-name">${this._esc(catName)}</div><div class="budget-cat-amounts">${this.formatCurrency(spent)} / ${this.formatCurrency(budget)}</div></div>
                     </div>
                     <span class="cat-pct-badge ${getBadge(pct)}">${pct}%</span>
                 </div>
