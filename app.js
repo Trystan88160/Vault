@@ -380,7 +380,10 @@ const app = {
                 key: 'done',
                 label: 'Prêt !',
                 title: 'Tu es prêt 🎉',
-                desc: 'Le bouton ＋ en bas à droite ajoute une dépense en un geste, et le bouton « ? Aide » de chaque onglet explique ce qu\'il contient. Tes données sont sauvegardées chaque jour (⚙ → Historique). Bonne gestion !',
+                desc: (window.matchMedia('(max-width:768px)').matches
+                        ? 'Le bouton ＋ en bas à droite ajoute une dépense en un geste. Les onglets sont dans la barre du bas. '
+                        : 'Pour ajouter une dépense, utilise le bouton « ＋ Dépense » de l\'onglet Budget. ')
+                    + 'Le bouton « ? Aide » de chaque onglet explique ce qu\'il contient, et tes données sont sauvegardées chaque jour (⚙ → Historique). Bonne gestion !',
                 cta: 'Explorer Vault',
             },
         ];
@@ -1483,6 +1486,7 @@ const app = {
         const realName = name === 'objectifs' ? 'bilan' : name;
         const tab = document.getElementById('tab-' + realName);
         if (tab) tab.classList.add('active');
+        document.querySelectorAll('.mtb-item').forEach(t => t.classList.toggle('active', t.dataset.tab === realName));
         document.querySelectorAll('.nav-tab').forEach(t => {
             if (t.getAttribute('onclick') && t.getAttribute('onclick').includes("'" + realName + "'")) t.classList.add('active');
         });

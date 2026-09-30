@@ -1804,3 +1804,51 @@ tbody tr:nth-child(n+5){animation-delay:.14s}
 .pea-a2-pill.neg{background:rgba(244,67,54,.12);color:var(--danger)}
 @media(max-width:768px){.pea-a2-strip{flex-wrap:wrap}.pea-a2-cell{min-width:50%;border-bottom:1px solid var(--border-color)}}
 @media(max-width:480px){.pea-a2-cell{min-width:100%}}
+
+
+/* ══════════════════════════════════════════════════════
+   MOBILE v2 — barre d'onglets en bas, ergonomie téléphone
+   (aucun effet au-dessus de 768px : la version ordi est inchangée)
+══════════════════════════════════════════════════════ */
+.mobile-tabbar{display:none}
+@media (max-width:768px){
+  /* En-tête : logo + avatar, onglets déplacés en bas */
+  .topbar-nav{display:none!important}
+  .topbar{justify-content:space-between;overflow:visible;padding-top:calc(.3rem + env(safe-area-inset-top))}
+  .topbar-right{padding-right:.15rem}
+  #user-avatar{width:30px;height:30px;font-size:.8rem}
+
+  /* Barre d'onglets fixe, à portée de pouce */
+  .mobile-tabbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:900;
+    background:var(--bg-card);border-top:1px solid var(--border-color);
+    box-shadow:0 -6px 24px rgba(63,81,181,.08);
+    padding:.25rem .25rem calc(.25rem + env(safe-area-inset-bottom))}
+  .mtb-item{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.12rem;
+    background:none;border:none;padding:.3rem 0;min-height:54px;color:var(--text-tertiary);
+    font-family:'Inter',sans-serif;font-size:.64rem;font-weight:600;cursor:pointer;
+    touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:color .15s}
+  .mtb-ico{display:flex;align-items:center;justify-content:center;width:52px;height:30px;border-radius:15px;transition:background .2s}
+  .mtb-ico svg{width:22px;height:22px}
+  .mtb-lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .mtb-item.active{color:var(--accent-primary)}
+  .mtb-item.active .mtb-ico{background:rgba(63,81,181,.12)}
+  .mtb-item:active .mtb-ico{transform:scale(.94)}
+
+  /* Place libre en bas pour la barre + le bouton ＋ */
+  body{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
+  .fab{bottom:calc(74px + env(safe-area-inset-bottom));right:1rem;width:54px;height:54px}
+  .v-ob-resume-pill{bottom:calc(80px + env(safe-area-inset-bottom));left:1rem}
+  .v-toast{bottom:calc(84px + env(safe-area-inset-bottom));white-space:normal;text-align:center;width:max-content}
+
+  /* En-têtes qui débordaient */
+  .card-header{flex-wrap:wrap;gap:.6rem}
+  .pat-gl-topbar{flex-wrap:wrap;gap:.6rem}
+  .pat-gl-topbar-title{flex:1 0 100%}
+  .pat-gl-topbar > div{flex:1}
+  .pat-gl-topbar > div > button{flex:1}
+
+  /* Stats PEA : grille 2×2 au lieu d'une longue colonne */
+  .pea-a2-cell{min-width:50%!important;padding:.8rem 1rem;border-right:none}
+  .pea-a2-cell:nth-child(odd){border-right:1px solid var(--border-color)}
+  .pea-a2-value{font-size:1.1rem}
+}
