@@ -290,12 +290,13 @@ const app = {
         this.refreshLignesPEA();
         this.refreshHeatmap();
         this.checkResumeHebdo();
-        if (this.data.objectifs.length === 0 && !localStorage.getItem('suiviFinancier')) {
-            this.chargerDonneesExemple();
-        }
-
-        // Onboarding premier lancement
-        if (!localStorage.getItem('vault_ob_done')) {
+        // Onboarding : uniquement pour un compte vraiment nouveau.
+        // Le « déjà vu » est aussi stocké dans les données (cloud) pour ne pas
+        // réapparaître sur chaque nouvel appareil.
+        const obDejaVu = localStorage.getItem('vault_ob_done') || this.data.parametres.onboardingDone;
+        const aDesDonnees = (this.data.depenses || []).length || (this.data.revenus || []).length
+            || (this.data.comptesPointage || []).length;
+        if (!obDejaVu && !aDesDonnees) {
             setTimeout(() => this._startOnboarding(), 900);
         }
 
@@ -345,8 +346,8 @@ const app = {
                 title: 'Crée ton compte bancaire',
                 desc: 'Ajoute ton compte courant avec son solde actuel. Vault calculera tes mouvements à partir de cette date.',
                 cta: 'Suivant →',
-                actionLabel: '🏦 Ouvrir maintenant',
-                actionFn: () => document.querySelector('[onclick*="openAddComptePointage"]')?.click(),
+                actionLabel: '🏦 Ajouter mon compte',
+                actionFn: () => this.openAddComptePointage(),
             },
             {
                 key: 'income',
@@ -355,31 +356,31 @@ const app = {
                 desc: 'Entre ton salaire net. Vault s\'en sert pour calculer ton taux d\'épargne et tes capacités budgétaires.',
                 cta: 'Suivant →',
                 actionLabel: '💰 Saisir mon revenu',
-                actionFn: () => document.querySelector('[onclick*="openBsRevenu"], [onclick*="openRevenu"]')?.click(),
+                actionFn: () => this.openBsRevenus(),
             },
             {
                 key: 'categories',
                 label: 'Étape 3 / 4',
                 title: 'Configure tes catégories',
-                desc: 'Crée tes catégories de dépenses (Alimentation, Transport, Loyer…) pour organiser ton budget. Tu peux en ajouter autant que tu veux.',
+                desc: 'Adapte tes catégories de dépenses (Alimentation, Transport, Loyer…) et fixe un budget mensuel pour chacune. Tu peux en ajouter autant que tu veux.',
                 cta: 'Suivant →',
                 actionLabel: '🏷 Gérer les catégories',
-                actionFn: () => document.querySelector('[onclick*="openBudgetsModal"], [onclick*="budgetsModal"]')?.click(),
+                actionFn: () => this.toggleBudgetsPanel(),
             },
             {
                 key: 'expense',
                 label: 'Étape 4 / 4',
                 title: 'Première dépense',
-                desc: 'Ajoute ta première dépense ou importe un relevé CSV bancaire pour remplir tout ton historique d\'un coup.',
+                desc: 'Ajoute ta première dépense. Pour remplir tout ton historique d\'un coup, importe le relevé CSV de ta banque : onglet Budget → ＋ Dépense ▾ → Import CSV bancaire (les doublons sont repérés automatiquement).',
                 cta: 'Suivant →',
                 actionLabel: '➕ Ajouter une dépense',
-                actionFn: () => document.querySelector('[onclick*="openBsDep"], [onclick*="openDep"]')?.click(),
+                actionFn: () => this.openBsDepenses(),
             },
             {
                 key: 'done',
                 label: 'Prêt !',
                 title: 'Tu es prêt 🎉',
-                desc: 'Explore les onglets Budget, PEA, Patrimoine et Bilan au fur et à mesure que tu enrichis tes données. Bonne gestion !',
+                desc: 'Le bouton ＋ en bas à droite ajoute une dépense en un geste, et le bouton « ? Aide » de chaque onglet explique ce qu\'il contient. Tes données sont sauvegardées chaque jour (⚙ → Historique). Bonne gestion !',
                 cta: 'Explorer Vault',
             },
         ];
@@ -465,7 +466,6 @@ const app = {
             if (step > 0) { step--; render(step, -1); }
         };
         overlay.querySelector('.v-ob-skip').onclick = () => this._closeOnboarding();
-        overlay.addEventListener('click', e => { if (e.target === overlay) this._closeOnboarding(); });
 
         this._obCurrentStep = 0;
         this._obSteps = STEPS;
@@ -503,6 +503,10 @@ const app = {
 
     _closeOnboarding() {
         localStorage.setItem('vault_ob_done', '1');
+        if (!this.data.parametres.onboardingDone) {
+            this.data.parametres.onboardingDone = true;
+            this.save();
+        }
         document.getElementById('_ob_resume_pill')?.remove();
         const o = this._obOverlay;
         if (!o) return;
@@ -793,38 +797,6 @@ const app = {
             const overlay = document.getElementById(overlayId);
             if (overlay) overlay.classList.remove('active');
         }, 300);
-    },
-
-    chargerDonneesExemple() {
-
-        const now = new Date();
-        const m = (d) => `${now.getFullYear()}-${String(now.getMonth()+1+d).padStart(2,'0')}`;
-
-        this.data.objectifs = [
-            { id: 1, nom: 'Voyage au Japon', emoji: '✈️', cible: 3500, actuel: 2100, dateTarget: m(4) },
-            { id: 2, nom: 'Voiture', emoji: '🚗', cible: 8000, actuel: 800, dateTarget: m(10) },
-            { id: 3, nom: 'Apport immobilier', emoji: '🏠', cible: 30000, actuel: 12400, dateTarget: m(24) }
-        ];
-        this.data.recurrences = [
-            { id: 1, nom: 'Loyer', emoji: '🏠', montant: 850, jour: 1, freq: 'mensuel', actif: true },
-            { id: 2, nom: 'Netflix + Spotify', emoji: '📺', montant: 23, jour: 15, freq: 'mensuel', actif: true },
-            { id: 3, nom: 'Forfait mobile', emoji: '📱', montant: 19, jour: 20, freq: 'mensuel', actif: true }
-        ];
-        this.data.notes = [
-            { id: 1, mois: m(-1), texte: 'Prime de fin d\'année reçue — +1 200 € versés directement sur PEA.', tag: 'Revenu exceptionnel' },
-            { id: 2, mois: m(-2), texte: 'Déménagement — frais de transport + dépôt de garantie. Budget shopping dépassé.', tag: 'Dépense exceptionnelle' }
-        ];
-        this.data.lignesPEA = [
-            { id: 1, nom: 'MSCI World', ticker: 'CW8', parts: 42, pru: 95.40, valeurActuelle: 108.95 },
-            { id: 2, nom: 'S&P 500', ticker: '500', parts: 18, pru: 98.20, valeurActuelle: 105.20 },
-            { id: 3, nom: 'Emerging Mkt', ticker: 'AEEM', parts: 30, pru: 31.50, valeurActuelle: 28.90 }
-        ];
-        this.data.allocationCible = { 'MSCI World': 60, 'S&P 500': 25, 'Emerging Mkt': 15 };
-        this.save();
-        this.refreshObjectifs();
-        this.refreshNotes();
-        this.refreshRecurrences();
-        this.refreshLignesPEA();
     },
 
     // Échappe tous les caractères HTML dangereux — à utiliser sur toute
@@ -2837,6 +2809,7 @@ const app = {
 
     closeBudgetsModal() {
         this._closeModal('budgetsModal');
+        if (this._obOverlay && this._obOverlay.style.display === 'none') setTimeout(() => this._obAutoResume(true), 300);
     },
 
     toggleComptesPanel() {

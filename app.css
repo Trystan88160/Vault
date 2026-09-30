@@ -965,7 +965,7 @@ tbody tr:nth-child(n+5){animation-delay:.14s}
 .v-ob-body{transition:opacity .18s ease,transform .18s ease}
 .v-ob-body.exit{opacity:0;transform:translateX(-10px)}
 .v-ob-body.enter{opacity:0;transform:translateX(10px)}
-.v-ob-resume-pill{position:fixed;bottom:1.5rem;left:1.5rem;z-index:12000;display:flex;align-items:center;gap:.5rem;background:linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-end));color:#fff;border:none;border-radius:50px;padding:.6rem 1.1rem .6rem .85rem;font-size:.82rem;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(124,77,255,.4);font-family:'Inter',sans-serif;animation:vpObCardIn .3s cubic-bezier(.34,1.56,.64,1) both;transition:transform .15s,box-shadow .15s}
+.v-ob-resume-pill{position:fixed;bottom:1.5rem;left:1.5rem;z-index:999;display:flex;align-items:center;gap:.5rem;background:linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-end));color:#fff;border:none;border-radius:50px;padding:.6rem 1.1rem .6rem .85rem;font-size:.82rem;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(124,77,255,.4);font-family:'Inter',sans-serif;animation:vpObCardIn .3s cubic-bezier(.34,1.56,.64,1) both;transition:transform .15s,box-shadow .15s}
 .v-ob-resume-pill:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 10px 26px rgba(124,77,255,.5)}
 .v-ob-pill-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.7);animation:vpPulseDot 1.4s ease-in-out infinite}
 @keyframes vpPulseDot{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.4);opacity:1}}
