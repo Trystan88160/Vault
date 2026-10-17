@@ -2557,7 +2557,7 @@ const app = {
                 </div>
                 <div style="display:flex;align-items:center;gap:.5rem">
                     <span style="font-size:.82rem;font-weight:700;color:var(--success)">+${this.formatCurrency(r.montant)}</span>
-                    <button onclick="app.supprimerRevenu(${r.id})" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:.65rem;padding:.1rem .25rem;opacity:.6" title="Supprimer">✕</button>
+                    <button onclick="app.supprimerRevenu('${app._esc(String(r.id))}')" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:.65rem;padding:.1rem .25rem;opacity:.6" title="Supprimer">✕</button>
                 </div>
             </div>`).join('');
     },
@@ -4545,7 +4545,7 @@ const app = {
                 </div>
                 <div style="display:flex;align-items:center;gap:.75rem">
                     <span style="font-family:'Outfit',sans-serif;font-size:.95rem;font-weight:700;color:var(--success)">+${this.formatCurrency(r.montant)}</span>
-                    <button onclick="app.supprimerRevenu(${r.id})" style="border:none;background:transparent;color:var(--text-tertiary);cursor:pointer;font-size:.75rem;padding:.1rem .3rem">✕</button>
+                    <button onclick="app.supprimerRevenu('${app._esc(String(r.id))}')" style="border:none;background:transparent;color:var(--text-tertiary);cursor:pointer;font-size:.75rem;padding:.1rem .3rem">✕</button>
                 </div>
             </div>`).join('');
     },
@@ -7832,6 +7832,10 @@ const app = {
                 <div class="form-group" id="rec-mois-wrap" style="display:none"><label class="form-label">Premier mois de prélèvement</label>
                     <input type="month" class="form-input" id="rec-mois" value="${app._jourLocal().slice(0, 7)}">
                 </div>
+                ${(this.data.comptesPointage || []).length ? `<div class="form-group"><label class="form-label">Compte prélevé</label>
+                    <select class="form-select" id="rec-compte">${(this.data.comptesPointage || []).map(c =>
+                        `<option value="${this._esc(String(c.id))}"${String(c.id) === this._getMostUsedCompteId() ? ' selected' : ''}>${this._esc(c.nom)}</option>`).join('')}</select>
+                </div>` : ''}
                 <div class="form-group"><label class="form-label">Catégorie (quand elle passe)</label>
                     <select class="form-select" id="rec-cat"><option value="">Deviner automatiquement</option>${
                         Object.keys(this.data.budgets || {}).map(c => `<option value="${this._esc(c)}">${this._esc(c)}</option>`).join('')}</select>
@@ -7859,6 +7863,8 @@ const app = {
         if (freq !== 'mensuel') rec.moisRef = document.getElementById('rec-mois')?.value || app._jourLocal().slice(0, 7);
         const recCat = document.getElementById('rec-cat')?.value;
         if (recCat) rec.categorie = recCat;
+        const recCompte = document.getElementById('rec-compte')?.value;
+        if (recCompte) rec.compteId = recCompte;
         this.data.recurrences.push(rec);
         this.save();
         this.refreshRecurrences();
@@ -7905,7 +7911,7 @@ const app = {
                         <div style="font-family:DM Mono,monospace;font-size:0.9rem;font-weight:600;color:var(--danger)">−${this.formatCurrency(r.montant)}</div>
                         <div style="font-size:0.65rem;color:var(--text-tertiary)">Dans ${jours} jours</div>
                     </div>
-                    <button class="btn btn-small btn-secondary" onclick="app.supprimerRecurrence(${r.id})">✕</button>
+                    <button class="btn btn-small btn-secondary" onclick="app.supprimerRecurrence('${app._esc(String(r.id))}')">✕</button>
                 </div>
             </div>`;
         }).join('');
@@ -7971,13 +7977,13 @@ const app = {
     },
 
     mettreAJourObjectif(id, nouvelActuel) {
-        const obj = this.data.objectifs.find(o => o.id === id);
+        const obj = this.data.objectifs.find(o => String(o.id) === String(id));
         if (obj) { obj.actuel = parseFloat(nouvelActuel) || 0; this.save(); this.refreshObjectifs(); }
     },
 
     supprimerObjectif(id) {
         this.showModal('Supprimer l\'objectif', 'Voulez-vous vraiment supprimer cet objectif ?', () => {
-            this.data.objectifs = this.data.objectifs.filter(o => o.id !== id);
+            this.data.objectifs = this.data.objectifs.filter(o => String(o.id) !== String(id));
             this.save();
             this.refreshObjectifs();
             this.notify('Objectif supprimé', 'success');
@@ -8047,7 +8053,7 @@ const app = {
               <div style="background:${grad};padding:1.1rem 1.25rem;position:relative">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start">
                   <div style="font-size:1.8rem">${app._esc(o.emoji)}</div>
-                  <button onclick="app.supprimerObjectif(${o.id})" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:.7rem;display:flex;align-items:center;justify-content:center">✕</button>
+                  <button onclick="app.supprimerObjectif('${app._esc(String(o.id))}')" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:.7rem;display:flex;align-items:center;justify-content:center">✕</button>
                 </div>
                 <div style="font-weight:700;color:#fff;font-size:.95rem;margin-top:.35rem">${app._esc(o.nom)}</div>
                 <div style="font-size:.65rem;color:rgba(255,255,255,.7);margin-top:.15rem">${dateLabel} ${doneTag}</div>
@@ -8067,7 +8073,7 @@ const app = {
                 ${projText}
                 ${done ? '' : `
                 <div style="display:flex;gap:.4rem;margin-top:.65rem;align-items:center">
-                  <input type="number" class="form-input" placeholder="Mettre à jour (€)" step="50" style="flex:1;padding:.5rem;font-size:.8rem" onchange="app.mettreAJourObjectif(${o.id}, this.value)">
+                  <input type="number" class="form-input" placeholder="Mettre à jour (€)" step="50" style="flex:1;padding:.5rem;font-size:.8rem" onchange="app.mettreAJourObjectif('${app._esc(String(o.id))}', this.value)">
                 </div>`}
               </div>
             </div>`;
@@ -9816,7 +9822,8 @@ const app = {
             date: y + '-' + String(m + 1).padStart(2, '0') + '-' + String(jour).padStart(2, '0'),
             note: r.nom,
             recurrenceId: r.id,
-            compteId: null
+            compteId: (r.compteId && (this.data.comptesPointage || []).some(c => String(c.id) === String(r.compteId)))
+                ? r.compteId : this._getMostUsedCompteId()
         });
         this.save();
         this._rafraichirApresTransaction();
