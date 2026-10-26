@@ -9593,7 +9593,8 @@ const app = {
     },
 
     openBudgetAnalyseModal(type) {
-        // Ferme dropdown
+        // Ferme les menus déroulants (Analyse et « ⋯ »)
+        document.getElementById('budget-dep-menu')?.classList.remove('open');
         document.getElementById('budget-an-menu')?.classList.remove('open');
         document.getElementById('budget-an-btn')?.classList.remove('open-state');
         // Rafraîchit le contenu selon le type
