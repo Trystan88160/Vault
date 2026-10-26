@@ -7694,13 +7694,14 @@ const app = {
         const renderModal = () => {
             modal.innerHTML = `
             <div class="modal-header" style="position:sticky;top:0;background:var(--bg-card);z-index:1;padding-bottom:.75rem;margin-bottom:.25rem">
-                <h2 class="modal-title" style="font-family:'Outfit',sans-serif">🏷 Classifier les catégories</h2>
-                <p style="font-size:.75rem;color:var(--text-secondary);margin-top:.3rem;line-height:1.5">
-                    Clique sur un badge pour forcer la classification.<br>
-                    <strong>🔀 Auto</strong> = l'app utilise les mots-clés (comportement par défaut).
-                </p>
+                <h2 class="modal-title" style="font-family:'Outfit',sans-serif">🏷 Règle 50 / 30 / 20 : classer les catégories</h2>
             </div>
             <div class="modal-body" style="padding-top:.25rem">
+                <p style="font-size:.75rem;color:var(--text-secondary);margin:0 0 .75rem;line-height:1.5">
+                    Choisis pour chaque catégorie si c'est un <strong>besoin</strong> (cible ≤ 50 % du revenu) ou une <strong>envie</strong> (≤ 30 %) ;
+                    le reste du revenu compte comme <strong>épargne</strong> (≥ 20 %).<br>
+                    <strong>🔀 Auto</strong> = Vault décide d'après le nom de la catégorie.
+                </p>
                 <div style="display:flex;flex-direction:column;gap:.55rem">
                 ${cats.map(cat => {
                     const current = getClassif(cat);
@@ -7734,6 +7735,7 @@ const app = {
     },
 
     _setClassif503020(cat, type) {
+        setTimeout(() => this._refreshBudgetHeroAndCats?.(), 0);
         if (!this.data.classif503020) this.data.classif503020 = {};
         if (type === 'auto') {
             delete this.data.classif503020[cat];
@@ -7746,6 +7748,7 @@ const app = {
     },
 
     _resetAllClassif503020() {
+        setTimeout(() => this._refreshBudgetHeroAndCats?.(), 0);
         this.data.classif503020 = {};
         this.save();
         this.refreshRegle503020();
@@ -7757,6 +7760,54 @@ const app = {
         if (modal) modal.style.display = 'none';
         document.getElementById('overlay').style.display = 'none';
         this._classif503020RenderFn = null;
+    },
+
+    // Règle 50/30/20 pour un mois donné : besoins / envies (selon la classification) et épargne = revenus − dépenses
+    _calc503020(y, m) {
+        const exclus = this.data.categoriesEpargne || ['ÉPARGNE'];
+        const estEpargne = cat => exclus.some(e => (cat || '').toUpperCase().includes(e.toUpperCase()));
+        const deps = this.data.depenses.filter(d => {
+            const date = new Date(d.date);
+            return date.getMonth() === m && date.getFullYear() === y && !estEpargne(d.categorie);
+        });
+        const { total: revenus } = this.getRevenusMois(y, m);
+        if (!(revenus > 0)) return null;
+        const besoinsKeys = ['MANGER', 'CARBU', 'TRANSPORT', 'LOYER', 'SANTE', 'FACTURE', 'ABONNEMENT'];
+        const enviesKeys  = ['LOISIR', 'BAR', 'VETEMENT', 'SHOPPING', 'RESTAURANT', 'SORTIE'];
+        const overrides   = this.data.classif503020 || {};
+        let besoins = 0, envies = 0;
+        deps.forEach(d => {
+            const o = overrides[d.categorie];
+            if (o === 'besoin') { besoins += d.montant; return; }
+            if (o === 'envie')  { envies  += d.montant; return; }
+            const up = (d.categorie || '').toUpperCase();
+            if (besoinsKeys.some(k => up.includes(k))) besoins += d.montant;
+            else if (enviesKeys.some(k => up.includes(k))) envies += d.montant;
+            else { besoins += d.montant / 2; envies += d.montant / 2; }
+        });
+        const epargne = Math.max(0, revenus - besoins - envies);
+        const pct = v => Math.round(v / revenus * 100);
+        return { revenus, besoins, envies, epargne, pB: pct(besoins), pE: pct(envies), pS: pct(epargne) };
+    },
+
+    _renderRegleBilan(y, m) {
+        const el = document.getElementById('bh-regle');
+        if (!el) return;
+        const r = this._calc503020(y, m);
+        if (!r) { el.style.display = 'none'; return; }
+        el.style.display = '';
+        const w = v => Math.max(0, Math.min(100, v)) + '%';
+        const tot = Math.max(100, r.pB + r.pE + r.pS);
+        document.getElementById('bh-regle-b').style.width = w(r.pB / tot * 100);
+        document.getElementById('bh-regle-e').style.width = w(r.pE / tot * 100);
+        document.getElementById('bh-regle-s').style.width = w(r.pS / tot * 100);
+        const ok = r.pB <= 50 && r.pE <= 30 && r.pS >= 20;
+        const ecart = r.pB > 50 ? 'besoins > 50 %' : r.pE > 30 ? 'envies > 30 %' : r.pS < 20 ? 'épargne < 20 %' : '';
+        document.getElementById('bh-regle-vals').innerHTML =
+            `<span><i class="dot seg-b"></i>Besoins <b>${r.pB} %</b></span>` +
+            `<span><i class="dot seg-e"></i>Envies <b>${r.pE} %</b></span>` +
+            `<span><i class="dot seg-s"></i>Épargne <b>${r.pS} %</b></span>` +
+            `<span class="bh-regle-etat${ok ? ' ok' : ''}">${ok ? '✓' : '⚠ ' + ecart}</span>`;
     },
 
     refreshRegle503020() {
@@ -9778,6 +9829,7 @@ const app = {
                     : ecart > 0 ? '<b>' + eur0(ecart) + ' en avance</b> sur le rythme' : eur0(-ecart) + ' de marge sur le rythme');
             } else paceLeg.innerHTML = '';
         }
+        this._renderRegleBilan(y, m);
         this._refreshBudgetTopCats(depMois);
         this._refreshBudgetRecentTxs();
     },
