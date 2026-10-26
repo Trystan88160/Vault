@@ -1999,3 +1999,44 @@ tbody tr:nth-child(n+5){animation-delay:.14s}
 .qa-meta > div{flex:1;margin-top:0!important;min-width:140px}
 @keyframes qaPulse{0%{box-shadow:0 0 0 0 rgba(99,102,241,.55)}100%{box-shadow:0 0 0 14px rgba(99,102,241,0)}}
 .qa-pulse{animation:qaPulse .9s ease-out 2}
+
+
+/* ── Règle 50/30/20 discrète dans « Bilan du mois » ── */
+.bh-regle{position:relative;z-index:1;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;width:100%;margin-top:.85rem;
+  padding:.5rem .15rem 0;background:none;border:none;border-top:1px solid rgba(255,255,255,.14);cursor:pointer;text-align:left;font:inherit;color:inherit}
+.bh-regle:hover .bh-regle-lbl{color:#fff}
+.bh-regle-lbl{font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.1em;color:rgba(255,255,255,.55);white-space:nowrap}
+.bh-regle-bar{position:relative;display:flex;flex:0 0 140px;height:5px;border-radius:100px;overflow:visible;background:rgba(255,255,255,.12)}
+.bh-regle-seg{height:100%}
+.bh-regle-seg:first-child{border-radius:100px 0 0 100px}
+.bh-regle-seg:nth-child(3){border-radius:0 100px 100px 0}
+.seg-b{background:rgba(255,255,255,.85)}
+.seg-e{background:#ffd54f}
+.seg-s{background:#69f0ae}
+.bh-regle-tick{position:absolute;top:-3px;bottom:-3px;width:1px;background:rgba(255,255,255,.55)}
+.bh-regle-vals{display:flex;gap:.85rem;flex-wrap:wrap;align-items:center;font-family:'DM Mono',monospace;font-size:.6rem;color:rgba(255,255,255,.62)}
+.bh-regle-vals b{color:rgba(255,255,255,.92);font-weight:600}
+.bh-regle-vals .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:.3rem;vertical-align:middle}
+.bh-regle-etat{color:#ffe082}
+.bh-regle-etat.ok{color:#b9f6ca}
+@media (max-width:768px){
+  .bh-regle{gap:.45rem .6rem}
+  .bh-regle-bar{flex:1 1 auto;min-width:120px}
+  .bh-regle-vals{width:100%;gap:.6rem;font-size:.56rem}
+}
+
+/* Détail au survol de la ligne 50/30/20 */
+.bh-regle-tip{position:absolute;left:0;bottom:calc(100% + 8px);z-index:5;min-width:330px;padding:.7rem .85rem;border-radius:12px;
+  background:rgba(26,26,58,.94);color:#fff;font-family:'DM Mono',monospace;font-size:.64rem;line-height:1.5;
+  box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;transform:translateY(4px);pointer-events:none;transition:opacity .15s,transform .15s}
+.bh-regle-tip .tip-t{color:rgba(255,255,255,.7);margin-bottom:.35rem}
+.bh-regle-tip .tip-t b{color:#fff}
+.bh-regle-tip .tip-l{display:grid;grid-template-columns:5.5rem 5.5rem 2.6rem 1fr;align-items:center;gap:.4rem;padding:.12rem 0}
+.bh-regle-tip .tip-l b{text-align:right;font-weight:600}
+.bh-regle-tip .tip-p{text-align:right;color:rgba(255,255,255,.75)}
+.bh-regle-tip .tip-c{color:rgba(255,255,255,.55)}
+.bh-regle-tip .tip-c.ok::before{content:'✓ ';color:#b9f6ca}
+.bh-regle-tip .tip-c.ko::before{content:'⚠ ';color:#ffe082}
+.bh-regle-tip .tip-f{margin-top:.4rem;color:rgba(255,255,255,.5);font-size:.58rem}
+.bh-regle-tip .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:.35rem;vertical-align:middle}
+@media (hover:hover){.bh-regle:hover .bh-regle-tip,.bh-regle:focus-visible .bh-regle-tip{opacity:1;transform:none}}

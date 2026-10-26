@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh47">
+    <link rel="stylesheet" href="app.css?v=enh49">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -355,11 +355,6 @@
           <div class="budget-an-item-text"><div class="budget-an-item-label">Comparaison mois à mois</div><div class="budget-an-item-desc">Comparez deux mois par catégorie</div></div>
           <span class="budget-an-item-arrow">›</span>
         </div>
-        <div class="budget-an-item" onclick="app.openBudgetAnalyseModal('regle')">
-          <div class="budget-an-item-icon" style="background:linear-gradient(135deg,rgba(0,200,83,.1),rgba(0,150,60,.06))">⚖️</div>
-          <div class="budget-an-item-text"><div class="budget-an-item-label">Règle 50 / 30 / 20</div><div class="budget-an-item-desc">Besoins, envies et épargne</div></div>
-          <span class="budget-an-item-arrow">›</span>
-        </div>
         <div class="budget-an-item" onclick="app.openBudgetAnalyseModal('cashflow')">
           <div class="budget-an-item-icon" style="background:linear-gradient(135deg,rgba(0,200,83,.1),rgba(0,150,100,.06))">📊</div>
           <div class="budget-an-item-text"><div class="budget-an-item-label">Revenus &amp; Cashflow</div><div class="budget-an-item-desc">Historique mensuel revenus et solde</div></div>
@@ -406,6 +401,15 @@
     <div class="budget-prog-bar bh-bar"><div class="budget-prog-fill" id="budget-hero-prog"></div><div class="pace-marker" id="budget-hero-pace" title="Aujourd'hui"></div></div>
     <div class="bh-pace-legend" id="budget-hero-pace-legend"></div>
   </div>
+  <button type="button" class="bh-regle" id="bh-regle" onclick="app.ouvrirClassif503020()" aria-label="Règle 50 / 30 / 20 — classer les catégories" style="display:none">
+    <span class="bh-regle-tip" id="bh-regle-tip" role="tooltip"></span>
+    <span class="bh-regle-lbl">50 / 30 / 20</span>
+    <span class="bh-regle-bar">
+      <span class="bh-regle-seg seg-b" id="bh-regle-b"></span><span class="bh-regle-seg seg-e" id="bh-regle-e"></span><span class="bh-regle-seg seg-s" id="bh-regle-s"></span>
+      <i class="bh-regle-tick" style="left:50%"></i><i class="bh-regle-tick" style="left:80%"></i>
+    </span>
+    <span class="bh-regle-vals" id="bh-regle-vals"></span>
+  </button>
 </div>
 
 <!-- ══ À VENIR CE MOIS (dépenses récurrentes pas encore passées) ══ -->
@@ -1428,7 +1432,7 @@
 </div>
 
 
-<script src="app.js?v=enh47" defer></script>
+<script src="app.js?v=enh49" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">
