@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh46">
+    <link rel="stylesheet" href="app.css?v=enh47">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -342,6 +342,7 @@
       <div class="budget-dropdown-menu" id="budget-dep-menu">
         <div class="budget-dropdown-item" onclick="app.toggleBudgetsPanel()"><span>⚙</span> Gérer les catégories</div>
         <div class="budget-dropdown-item" onclick="app.toggleImportBancaire()"><span>🏦</span> Import CSV bancaire</div>
+        <div class="budget-dropdown-item" onclick="app.openBudgetAnalyseModal('rec')"><span>🔄</span> Dépenses récurrentes</div>
       </div>
     </div>
     <div class="budget-an-wrap" id="budget-an-wrap">
@@ -357,11 +358,6 @@
         <div class="budget-an-item" onclick="app.openBudgetAnalyseModal('regle')">
           <div class="budget-an-item-icon" style="background:linear-gradient(135deg,rgba(0,200,83,.1),rgba(0,150,60,.06))">⚖️</div>
           <div class="budget-an-item-text"><div class="budget-an-item-label">Règle 50 / 30 / 20</div><div class="budget-an-item-desc">Besoins, envies et épargne</div></div>
-          <span class="budget-an-item-arrow">›</span>
-        </div>
-        <div class="budget-an-item" onclick="app.openBudgetAnalyseModal('rec')">
-          <div class="budget-an-item-icon" style="background:linear-gradient(135deg,rgba(255,152,0,.1),rgba(230,115,0,.06))">🔄</div>
-          <div class="budget-an-item-text"><div class="budget-an-item-label">Dépenses récurrentes</div><div class="budget-an-item-desc">Abonnements et charges fixes</div></div>
           <span class="budget-an-item-arrow">›</span>
         </div>
         <div class="budget-an-item" onclick="app.openBudgetAnalyseModal('cashflow')">
@@ -1432,7 +1428,7 @@
 </div>
 
 
-<script src="app.js?v=enh46" defer></script>
+<script src="app.js?v=enh47" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">
