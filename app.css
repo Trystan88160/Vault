@@ -2098,3 +2098,11 @@ tbody tr:nth-child(n+5){animation-delay:.14s}
 #budgetsModal .bc-amt input{border:none!important;background:transparent!important;box-shadow:none!important;padding:.45rem 0!important;height:auto!important;border-radius:0!important}
 .qa-amount::-webkit-inner-spin-button,.qa-amount::-webkit-outer-spin-button,.bc-amt input::-webkit-inner-spin-button,.bc-amt input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .qa-amount,.bc-amt input{-moz-appearance:textfield;appearance:textfield}
+
+/* ══ Un seul voile pour toutes les fenêtres : le gris-bleu clair de « Toutes les catégories » ══ */
+.budget-modal-overlay,.vp-overlay-bg,.bs-overlay,.overlay,.pea-panel-overlay,.v-ob-overlay,
+#settings-overlay,#help-overlay,#input-overlay,#emoji-cat-overlay{
+  background:rgba(30,58,95,.5)!important;
+  backdrop-filter:blur(4px)!important;
+  -webkit-backdrop-filter:blur(4px)!important;
+}
