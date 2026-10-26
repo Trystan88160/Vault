@@ -2864,17 +2864,54 @@ const app = {
         return cats.sort((a, b) => (count[b] || 0) - (count[a] || 0) || a.localeCompare(b));
     },
 
-    // Catégorie devinée d'après tes dépenses passées ayant une note proche
+    // Mots utiles d'un intitulé : sans accents, sans mots génériques (CB, paiement, de…),
+    // sans nombres, pluriel retiré (jeux → jeu)
+    _motsUtiles(texte) {
+        const STOP = this._motsVides || (this._motsVides = new Set(['cb','carte','paiement','prlv','prelevement','vir','virement',
+            'sepa','achat','facture','ref','de','du','des','la','le','les','et','chez','pour','avec','au','aux','en','un','une',
+            'sur','par','moi','rbst','remboursement','rembours']));
+        return this._normNote(texte).split(' ')
+            .filter(w => w.length >= 3 && !/^\d+$/.test(w) && !STOP.has(w))
+            .map(w => w.length > 3 ? w.replace(/[sx]$/, '') : w);
+    },
+
+    // Deux mots « se ressemblent » : identiques, l'un commence par l'autre (intermarch / intermarche),
+    // même squelette de consonnes (steam / stim), ou une seule faute de frappe (leclerc / leclec)
+    _motsProches(a, b) {
+        if (a === b) return true;
+        const court = Math.min(a.length, b.length);
+        if (court >= 4 && (a.startsWith(b) || b.startsWith(a))) return true;
+        const squelette = w => w.replace(/[aeiouy]/g, '').replace(/(.)\1+/g, '$1');
+        const sa = squelette(a);
+        // même squelette de consonnes, même première lettre, longueurs proches (steam / stim)
+        if (court >= 4 && a[0] === b[0] && Math.abs(a.length - b.length) <= 2 && sa.length >= 3 && sa === squelette(b)) return true;
+        if (court >= 6 && Math.abs(a.length - b.length) <= 1) {
+            // distance d'édition ≤ 1
+            let i = 0, j = 0, diff = 0;
+            while (i < a.length && j < b.length) {
+                if (a[i] === b[j]) { i++; j++; continue; }
+                if (++diff > 1) return false;
+                if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
+            }
+            return diff + (a.length - i) + (b.length - j) <= 1;
+        }
+        return false;
+    },
+
+    // Catégorie devinée d'après tes dépenses passées :
+    // 1) correspondance directe (même intitulé, même début, même premier mot) — très fiable ;
+    // 2) sinon, correspondance tolérante (pluriels, fautes de frappe, mots dans le désordre).
     _devinerCategorie(note) {
+        return this._devinerStrict(note) || this._devinerTolerant(note);
+    },
+
+    _devinerStrict(note) {
         const n = this._normNote(note);
         if (n.length < 3) return null;
         const cats = Object.keys(this.data.budgets || {});
         const premierMot = n.split(' ')[0];
         const votes = {};
         let rang = 0;
-        // Des plus récentes aux plus anciennes : chaque dépense ressemblante vote pour sa catégorie.
-        // Les saisies récentes pèsent plus (×0,7 à chaque rang) : si tu changes de catégorie
-        // pour un intitulé, Vault suit en 2-3 saisies. Un intitulé identique pèse double.
         const deps = (this.data.depenses || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
         for (const d of deps) {
             const dn = this._normNote(d.note);
@@ -2888,6 +2925,54 @@ const app = {
         const best = Object.entries(votes).sort((a, b) => b[1] - a[1])[0];
         return best ? best[0] : null;
     },
+
+    _devinerTolerant(note) {
+        const n = this._normNote(note);
+        if (n.length < 3) return null;
+        const cats = Object.keys(this.data.budgets || {});
+        const mots = this._motsUtiles(note);
+        const deps = (this.data.depenses || [])
+            .filter(d => cats.includes(d.categorie) && this._normNote(d.note))
+            .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const motsDe = deps.map(d => this._motsUtiles(d.note));
+
+        // Poids d'un mot tapé : 1 s'il n'apparaît que dans une catégorie (« steam » → LOISIRS),
+        // moins s'il apparaît partout (un prénom, une ville…) : 1 / nombre de catégories où on le trouve
+        const poidsMot = mots.map(w => {
+            const catsDuMot = new Set();
+            motsDe.forEach((md, k) => { if (md.some(v => this._motsProches(w, v))) catsDuMot.add(deps[k].categorie); });
+            return catsDuMot.size ? 1 / catsDuMot.size : 0;
+        });
+
+        const votes = {};
+        let rang = 0;
+        // Des plus récentes aux plus anciennes : chaque dépense ressemblante vote pour sa catégorie.
+        // Les saisies récentes pèsent plus (×0,7 par rang) : si tu changes de catégorie pour un
+        // intitulé, Vault suit. Un intitulé identique pèse double.
+        for (let k = 0; k < deps.length; k++) {
+            const dn = this._normNote(deps[k].note);
+            const motsD = motsDe[k];
+            let score;
+            if (dn === n) score = 2;
+            else if (!mots.length || !motsD.length) {
+                if (!(dn.startsWith(n) || n.startsWith(dn))) continue;
+                score = 1;
+            } else {
+                let s = 0;
+                mots.forEach((w, x) => { if (motsD.some(v => this._motsProches(w, v))) s += poidsMot[x]; });
+                if (!s) continue;
+                score = s / Math.max(mots.length, motsD.length);
+            }
+            votes[deps[k].categorie] = (votes[deps[k].categorie] || 0) + score * Math.pow(0.7, rang);
+            if (++rang >= 15) break;
+        }
+        const tri = Object.entries(votes).sort((a, b) => b[1] - a[1]);
+        if (!tri.length) return null;
+        // Trop peu d'indices : mieux vaut ne rien proposer que se tromper
+        if (tri[0][1] < this._seuilDevine) return null;
+        return tri[0][0];
+    },
+    _seuilDevine: 0.5,
 
     // 4 dépenses habituelles : même note + même montant, au moins 2 fois ces 4 derniers mois
     _raccourcisDepenses() {
