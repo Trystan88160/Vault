@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh48">
+    <link rel="stylesheet" href="app.css?v=enh49">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -401,7 +401,8 @@
     <div class="budget-prog-bar bh-bar"><div class="budget-prog-fill" id="budget-hero-prog"></div><div class="pace-marker" id="budget-hero-pace" title="Aujourd'hui"></div></div>
     <div class="bh-pace-legend" id="budget-hero-pace-legend"></div>
   </div>
-  <button type="button" class="bh-regle" id="bh-regle" onclick="app.ouvrirClassif503020()" title="Règle 50 / 30 / 20 — touche pour choisir quelles catégories sont des besoins ou des envies" style="display:none">
+  <button type="button" class="bh-regle" id="bh-regle" onclick="app.ouvrirClassif503020()" aria-label="Règle 50 / 30 / 20 — classer les catégories" style="display:none">
+    <span class="bh-regle-tip" id="bh-regle-tip" role="tooltip"></span>
     <span class="bh-regle-lbl">50 / 30 / 20</span>
     <span class="bh-regle-bar">
       <span class="bh-regle-seg seg-b" id="bh-regle-b"></span><span class="bh-regle-seg seg-e" id="bh-regle-e"></span><span class="bh-regle-seg seg-s" id="bh-regle-s"></span>
@@ -1431,7 +1432,7 @@
 </div>
 
 
-<script src="app.js?v=enh48" defer></script>
+<script src="app.js?v=enh49" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">

@@ -7808,6 +7808,21 @@ const app = {
             `<span><i class="dot seg-e"></i>Envies <b>${r.pE} %</b></span>` +
             `<span><i class="dot seg-s"></i>Épargne <b>${r.pS} %</b></span>` +
             `<span class="bh-regle-etat${ok ? ' ok' : ''}">${ok ? '✓' : '⚠ ' + ecart}</span>`;
+        // Détail au survol : montants réels face aux cibles de la règle
+        const tip = document.getElementById('bh-regle-tip');
+        if (tip) {
+            const f = v => this.formatCurrency(v);
+            const ligne = (cls, nom, montant, p, cible, sens) => {
+                const okL = sens === 'max' ? p <= cible : p >= cible;
+                return `<div class="tip-l"><span><i class="dot ${cls}"></i>${nom}</span><b>${f(montant)}</b><span class="tip-p">${p} %</span>
+                    <span class="tip-c ${okL ? 'ok' : 'ko'}">${sens === 'max' ? 'max' : 'min'} ${f(r.revenus * cible / 100)} (${cible} %)</span></div>`;
+            };
+            tip.innerHTML = `<div class="tip-t">Revenus du mois : <b>${f(r.revenus)}</b></div>`
+                + ligne('seg-b', 'Besoins', r.besoins, r.pB, 50, 'max')
+                + ligne('seg-e', 'Envies', r.envies, r.pE, 30, 'max')
+                + ligne('seg-s', 'Épargne', r.epargne, r.pS, 20, 'min')
+                + `<div class="tip-f">Clique pour classer tes catégories en besoins / envies</div>`;
+        }
     },
 
     refreshRegle503020() {

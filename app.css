@@ -2024,3 +2024,19 @@ tbody tr:nth-child(n+5){animation-delay:.14s}
   .bh-regle-bar{flex:1 1 auto;min-width:120px}
   .bh-regle-vals{width:100%;gap:.6rem;font-size:.56rem}
 }
+
+/* Détail au survol de la ligne 50/30/20 */
+.bh-regle-tip{position:absolute;left:0;bottom:calc(100% + 8px);z-index:5;min-width:330px;padding:.7rem .85rem;border-radius:12px;
+  background:rgba(26,26,58,.94);color:#fff;font-family:'DM Mono',monospace;font-size:.64rem;line-height:1.5;
+  box-shadow:0 10px 30px rgba(0,0,0,.25);opacity:0;transform:translateY(4px);pointer-events:none;transition:opacity .15s,transform .15s}
+.bh-regle-tip .tip-t{color:rgba(255,255,255,.7);margin-bottom:.35rem}
+.bh-regle-tip .tip-t b{color:#fff}
+.bh-regle-tip .tip-l{display:grid;grid-template-columns:5.5rem 5.5rem 2.6rem 1fr;align-items:center;gap:.4rem;padding:.12rem 0}
+.bh-regle-tip .tip-l b{text-align:right;font-weight:600}
+.bh-regle-tip .tip-p{text-align:right;color:rgba(255,255,255,.75)}
+.bh-regle-tip .tip-c{color:rgba(255,255,255,.55)}
+.bh-regle-tip .tip-c.ok::before{content:'✓ ';color:#b9f6ca}
+.bh-regle-tip .tip-c.ko::before{content:'⚠ ';color:#ffe082}
+.bh-regle-tip .tip-f{margin-top:.4rem;color:rgba(255,255,255,.5);font-size:.58rem}
+.bh-regle-tip .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:.35rem;vertical-align:middle}
+@media (hover:hover){.bh-regle:hover .bh-regle-tip,.bh-regle:focus-visible .bh-regle-tip{opacity:1;transform:none}}
