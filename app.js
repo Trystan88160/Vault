@@ -4608,8 +4608,7 @@ const app = {
         this._syncRevChips();
         this._prefillRevenu();
         this._renderRevRecents();
-        // Afficher l'historique récent
-        this.refreshHistoriqueRevenus();
+        // (l'historique complet des revenus est déjà mis à jour à l'enregistrement : inutile de le recalculer ici)
         // Ouvrir le bottom sheet
         const overlay = document.getElementById('bs-rev-overlay');
         if (overlay) overlay.classList.add('open');

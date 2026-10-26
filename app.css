@@ -2106,3 +2106,17 @@ tbody tr:nth-child(n+5){animation-delay:.14s}
   backdrop-filter:blur(4px)!important;
   -webkit-backdrop-filter:blur(4px)!important;
 }
+
+/* ══ Une seule animation pour toutes les fenêtres : celle de « Toutes les catégories » ══
+   voile instantané, fenêtre qui passe de 94 % à 100 % en fondu en 0,22 s (léger rebond).
+   Pas de second flou sur la fenêtre elle-même (le voile flou suffit) : moins de calcul à chaque image. */
+.modal,.bs-sheet{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:rgba(255,255,255,.97)!important}
+@keyframes vpCatFade{from{opacity:0}to{opacity:1}}
+/* zoom via la propriété « scale » : s'ajoute au positionnement de la fenêtre (centrée sur ordi, en bas sur téléphone) */
+@keyframes vpCatZoom{from{scale:.94}to{scale:1}}
+.modal.active{animation:vpCatFade .22s ease both,vpCatZoom .22s cubic-bezier(.34,1.56,.64,1) both!important}
+.bs-sheet{transform:scale(.94)!important;opacity:0!important;transition:opacity .22s ease,transform .22s cubic-bezier(.34,1.56,.64,1)!important}
+.bs-overlay.open .bs-sheet{transform:scale(1)!important;opacity:1!important}
+.bs-overlay.vp-bs-closing .bs-sheet{transform:scale(.94)!important;opacity:0!important}
+.bs-overlay{transition:opacity .15s ease!important}
+.bs-overlay.open,.vp-overlay-bg.vp-visible{transition:none!important}
