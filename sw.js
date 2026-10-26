@@ -1,5 +1,5 @@
 /* ── Service Worker — Vault ── */
-const CACHE_NAME = 'vault-v44';
+const CACHE_NAME = 'vault-v45';
 
 /* Fichiers à mettre en cache dès l'installation
    (chemins relatifs : fonctionne quel que soit le dossier d'hébergement) */

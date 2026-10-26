@@ -2871,15 +2871,19 @@ const app = {
         const cats = Object.keys(this.data.budgets || {});
         const premierMot = n.split(' ')[0];
         const votes = {};
-        let total = 0;
+        let rang = 0;
+        // Des plus récentes aux plus anciennes : chaque dépense ressemblante vote pour sa catégorie.
+        // Les saisies récentes pèsent plus (×0,7 à chaque rang) : si tu changes de catégorie
+        // pour un intitulé, Vault suit en 2-3 saisies. Un intitulé identique pèse double.
         const deps = (this.data.depenses || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
         for (const d of deps) {
             const dn = this._normNote(d.note);
             if (!dn || !cats.includes(d.categorie)) continue;
-            if (dn === n || dn.startsWith(n) || n.startsWith(dn) || (premierMot.length >= 3 && dn.split(' ').includes(premierMot))) {
-                votes[d.categorie] = (votes[d.categorie] || 0) + 1;
-                if (++total >= 10) break;
-            }
+            const proche = dn === n || dn.startsWith(n) || n.startsWith(dn);
+            const motCommun = premierMot.length >= 3 && dn.split(' ').includes(premierMot);
+            if (!proche && !motCommun) continue;
+            votes[d.categorie] = (votes[d.categorie] || 0) + (proche ? 2 : 1) * Math.pow(0.7, rang);
+            if (++rang >= 15) break;
         }
         const best = Object.entries(votes).sort((a, b) => b[1] - a[1])[0];
         return best ? best[0] : null;
@@ -2987,13 +2991,13 @@ const app = {
             <input type="text" class="bs-input qa-note" id="bs-dep-note-${id}" placeholder="Quoi ? (Leclerc, Tabac, Plein…)" autocomplete="off"
                 oninput="app._onDepNoteInput(${id})" onkeydown="app._onDepKey(event)">
             <div class="qa-chips">${catsUsage.map(c => `<button type="button" class="qa-chip${c === catDefaut ? ' active' : ''}" data-cat="${this._esc(c)}"
-                onclick="app._choisirCatLigne(${id}, this.dataset.cat, false)">${this._esc(c)}</button>`).join('')}</div>
+                onclick="app._choisirCatLigne(${id}, this.dataset.cat, false)" onkeydown="app._onDepKey(event)">${this._esc(c)}</button>`).join('')}</div>
             <div class="qa-hint" id="bs-dep-hint-${id}"></div>
             <select class="bs-input" id="bs-dep-cat-${id}" style="display:none">
                 ${cats.map(c => `<option value="${this._esc(c)}"${c === catDefaut ? ' selected' : ''}>${this._esc(c)}</option>`).join('')}
             </select>
             <div class="qa-meta">
-                <input type="date" class="bs-input" id="bs-dep-date-${id}" value="${today}">
+                <input type="date" class="bs-input" id="bs-dep-date-${id}" value="${today}" onkeydown="app._onDepKey(event)">
                 ${compteSelectHtml}
             </div>
         `;
@@ -9224,7 +9228,7 @@ const app = {
             if (montant < 0.01) return;
 
             const bankCat = colCateg >= 0 ? (cols[colCateg] || '') : '';
-            const cat = this._guessCategory(libelle, bankCat);
+            const cat = this._devinerCategorie(libelleNettoye) || this._devinerCategorie(libelle) || this._guessCategory(libelle, bankCat);
 
             this._importRows.push({
                 date, montant, libelle, libelleNettoye,
