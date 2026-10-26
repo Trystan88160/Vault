@@ -3626,37 +3626,135 @@ const app = {
         }).join('');
     },
 
+    // Argument JS sûr pour un nom de catégorie dans un onclick
+    _jsCat(cat) {
+        return "decodeURIComponent('" + encodeURIComponent(cat).replace(/'/g, '%27') + "')";
+    },
+
+    // Dépense moyenne par catégorie sur les N derniers mois complets où tu as saisi des dépenses
+    _moyennesCategories(nMois = 6) {
+        const now = new Date();
+        const mois = [];
+        for (let i = 1; i <= nMois; i++) mois.push(this._jourLocal(new Date(now.getFullYear(), now.getMonth() - i, 1)).slice(0, 7));
+        const actifs = mois.filter(m => this.data.depenses.some(d => (d.date || '').startsWith(m)));
+        const tot = {};
+        this.data.depenses.forEach(d => {
+            if (actifs.includes((d.date || '').slice(0, 7))) tot[d.categorie] = (tot[d.categorie] || 0) + d.montant;
+        });
+        const moy = {};
+        Object.keys(tot).forEach(c => { moy[c] = tot[c] / actifs.length; });
+        const revenus = actifs.length ? actifs.reduce((sum, m) => {
+            const [y, mm] = m.split('-').map(Number);
+            return sum + this.getRevenusMois(y, mm - 1).total;
+        }, 0) / actifs.length : 0;
+        return { moy, n: actifs.length, revenus };
+    },
+
+    _estCatEpargne(cat) {
+        const catEp = this.data.categoriesEpargne || ['ÉPARGNE'];
+        return catEp.some(e => cat.toUpperCase().includes(e.toUpperCase()));
+    },
+
+    _ligneBudgetInfo(cat, stats) {
+        const b = this.data.budgets[cat] || 0;
+        const m = stats.moy[cat] || 0;
+        const eur = v => Math.round(v).toLocaleString('fr-FR') + ' €';
+        if (!stats.n) return { bar: 0, col: 'var(--bg-secondary)', txt: 'Pas encore assez d\'historique', act: '' };
+        const r = b ? m / b : (m ? 2 : 0);
+        const col = r > 1 ? 'var(--danger)' : r > 0.85 ? 'var(--warning)' : 'var(--success)';
+        const bar = b ? Math.min(100, m / b * 100) : (m ? 100 : 0);
+        const txt = `dépensé en moyenne : <b style="color:${col}">${eur(m)}</b> / mois`;
+        const sugg = Math.ceil(m / 10) * 10;
+        let act;
+        if (!m && b) act = '<span class="bc-ok">aucune dépense récente</span>';
+        else if (Math.abs(sugg - b) >= 15) act = `<button class="bc-sugg" onclick="app._ajusterBudget(${this._jsCat(cat)}, ${sugg})">Ajuster à ${sugg} €</button>`;
+        else act = '<span class="bc-ok">✓ réaliste</span>';
+        return { bar, col, txt, act };
+    },
+
     updateBudgetsUI() {
         const container = document.getElementById('budgets-container');
-        const catEp = this.data.categoriesEpargne || ['ÉPARGNE'];
-        container.innerHTML = Object.keys(this.data.budgets).map(cat => {
-            const isEp  = catEp.some(e => cat.toUpperCase().includes(e.toUpperCase()));
+        if (!container) return;
+        const stats = this._moyennesCategories();
+        this._bcStats = stats;
+        const eur = v => Math.round(v).toLocaleString('fr-FR') + ' €';
+        const cats = Object.keys(this.data.budgets);
+        const normales = cats.filter(c => !this._estCatEpargne(c));
+        const epargnes = cats.filter(c => this._estCatEpargne(c));
+
+        container.innerHTML = normales.map(cat => {
             const emoji = this.data.catEmojis?.[cat] || this._getCatEmoji(cat);
-            const catEsc = cat.replace(/'/g, "\\'");
+            const info = this._ligneBudgetInfo(cat, stats);
+            const jc = this._jsCat(cat);
             return `
-            <div class="budget-item" style="align-items:center;gap:.5rem;flex-wrap:nowrap">
-                <button class="cat-emoji-btn" data-cat="${cat}"
-                        title="Changer l'emoji"
-                        onclick="app.openEmojiPickerForCat('${catEsc}', this)">${emoji}</button>
-                <input type="text" class="form-input" value="${cat}"
-                       onblur="app.renommerCategorie('${catEsc}', this.value)"
-                       onkeydown="if(event.key==='Enter') this.blur()"
-                       title="Cliquer pour renommer" style="cursor:text;flex:1;min-width:0">
-                ${isEp
-                    ? `<span title="Catégorie épargne" style="font-size:.7rem;background:rgba(0,200,83,.15);color:var(--success);padding:.2rem .5rem;border-radius:20px;font-weight:700;white-space:nowrap;flex-shrink:0">💰 Épargne</span>`
-                    : `<input type="number" class="form-input" value="${this.data.budgets[cat]}" step="10" onchange="app.updateBudget('${catEsc}', this.value)" style="width:80px;flex-shrink:0;text-align:right">`
-                }
-                <label title="Marquer comme épargne" style="display:flex;align-items:center;gap:.2rem;cursor:pointer;flex-shrink:0;font-size:.68rem;color:var(--text-tertiary);white-space:nowrap;user-select:none">
-                    <input type="checkbox" ${isEp ? 'checked' : ''} onchange="app.toggleCategorieEpargne('${catEsc}', this.checked)" style="accent-color:var(--success);width:13px;height:13px;cursor:pointer">
-                </label>
-                <button class="btn btn-small btn-secondary" onclick="app.supprimerCategorieBudget('${catEsc}')" style="flex-shrink:0">✕</button>
+            <div class="bc-row" data-cat="${this._esc(cat)}">
+                <div class="bc-top">
+                    <button class="cat-emoji-btn bc-ico" data-cat="${this._esc(cat)}" title="Changer l'emoji" onclick="app.openEmojiPickerForCat(${jc}, this)">${emoji}</button>
+                    <input type="text" class="bc-name" value="${this._esc(cat)}" title="Renommer"
+                        onblur="app.renommerCategorie(${jc}, this.value)" onkeydown="if(event.key==='Enter') this.blur()">
+                    <label class="bc-amt"><input type="number" inputmode="decimal" step="10" min="0" value="${this.data.budgets[cat]}"
+                        onchange="app.updateBudget(${jc}, this.value)" onkeydown="if(event.key==='Enter') this.blur()"><span>€</span></label>
+                    <button class="bc-more" title="Plus d'options" onclick="this.closest('.bc-row').classList.toggle('open')">⋯</button>
+                </div>
+                <div class="bc-mid">
+                    <div class="bc-stat"><div class="bc-bar"><i style="width:${info.bar}%;background:${info.col}"></i></div>
+                        <div class="bc-txt">${info.txt}</div></div>
+                    <div class="bc-act">${info.act}</div>
+                </div>
+                <div class="bc-actions">
+                    <button onclick="app.toggleCategorieEpargne(${jc}, true)">💰 Marquer comme épargne</button>
+                    <button class="danger" onclick="app.supprimerCategorieBudget(${jc})">🗑 Supprimer</button>
+                </div>
             </div>`;
-        }).join('') +
-        `<div style="margin-top:.75rem;padding:.6rem .75rem;background:var(--bg-secondary);border-radius:10px;font-size:.68rem;color:var(--text-tertiary);line-height:1.5">
-            Cliquez sur l'emoji pour le changer · 💰 = catégorie <strong>épargne</strong>
-         </div>`;
-        this.updateBudgetTotal();
+        }).join('') + epargnes.map(cat => {
+            const emoji = this.data.catEmojis?.[cat] || this._getCatEmoji(cat);
+            const jc = this._jsCat(cat);
+            const m = stats.moy[cat] || 0;
+            return `
+            <div class="bc-row" data-cat="${this._esc(cat)}">
+                <div class="bc-top">
+                    <button class="cat-emoji-btn bc-ico" data-cat="${this._esc(cat)}" title="Changer l'emoji" onclick="app.openEmojiPickerForCat(${jc}, this)">${emoji}</button>
+                    <input type="text" class="bc-name" value="${this._esc(cat)}" title="Renommer"
+                        onblur="app.renommerCategorie(${jc}, this.value)" onkeydown="if(event.key==='Enter') this.blur()">
+                    <span class="bc-ep">💰 Épargne · hors budget${m ? ' · ' + eur(m) + ' / mois' : ''}</span>
+                    <button class="bc-more" title="Plus d'options" onclick="this.closest('.bc-row').classList.toggle('open')">⋯</button>
+                </div>
+                <div class="bc-actions">
+                    <button onclick="app.toggleCategorieEpargne(${jc}, false)">↩ Ce n'est plus de l'épargne</button>
+                    <button class="danger" onclick="app.supprimerCategorieBudget(${jc})">🗑 Supprimer</button>
+                </div>
+            </div>`;
+        }).join('');
+        this._renderBcSummary();
     },
+
+    _renderBcSummary() {
+        const el = document.getElementById('bc-summary');
+        if (!el) return;
+        const stats = this._bcStats || this._moyennesCategories();
+        const eur = v => Math.round(v).toLocaleString('fr-FR') + ' €';
+        const normales = Object.keys(this.data.budgets).filter(c => !this._estCatEpargne(c));
+        const totalBudget = normales.reduce((s, c) => s + (this.data.budgets[c] || 0), 0);
+        const totalMoy = Object.keys(stats.moy).filter(c => !this._estCatEpargne(c)).reduce((s, c) => s + stats.moy[c], 0);
+        const col = !stats.n ? 'var(--text-tertiary)' : totalMoy > totalBudget * 1.02 ? 'var(--warning)' : 'var(--success)';
+        el.innerHTML = `
+            <div class="bc-sum-l"><div class="bc-lbl">Total des budgets</div><div class="bc-big">${eur(totalBudget)} <small>/ mois</small></div></div>
+            <div class="bc-sum-r"><div class="bc-lbl">Tu dépenses en moyenne</div><div class="bc-big" style="color:${col}">${stats.n ? eur(totalMoy) : '—'}</div></div>
+            <div class="bc-sum-note">${stats.n
+                ? `Moyenne de tes ${stats.n} dernier${stats.n > 1 ? 's' : ''} mois complet${stats.n > 1 ? 's' : ''}${stats.revenus ? ' · revenus moyens ' + eur(stats.revenus) : ''}`
+                : 'Les moyennes apparaîtront après ton premier mois complet'}</div>`;
+    },
+
+    _ajusterBudget(cat, valeur) {
+        this.data.budgets[cat] = valeur;
+        this.save();
+        this.updateBudgetsUI();
+        this.refreshStatsDepenses();
+        this._refreshBudgetHeroAndCats?.();
+        this.notify(`${cat} : budget réglé à ${valeur} €`, 'success');
+    },
+
+    terminerCategories() { this.closeBudgetsModal(); },
 
     toggleCategorieEpargne(cat, checked) {
         if (!this.data.categoriesEpargne) this.data.categoriesEpargne = [];
@@ -3679,6 +3777,15 @@ const app = {
         this.save();
         this.updateBudgetTotal();
         this.refreshStatsDepenses();
+        this._refreshBudgetHeroAndCats?.();
+        const row = [...document.querySelectorAll('#budgets-container .bc-row')].find(r => r.dataset.cat === cat);
+        if (row && this._bcStats) {
+            const info = this._ligneBudgetInfo(cat, this._bcStats);
+            const bar = row.querySelector('.bc-bar i'); if (bar) { bar.style.width = info.bar + '%'; bar.style.background = info.col; }
+            const txt = row.querySelector('.bc-txt'); if (txt) txt.innerHTML = info.txt;
+            const act = row.querySelector('.bc-act'); if (act) act.innerHTML = info.act;
+        }
+        this._renderBcSummary();
     },
 
     renommerCategorie(ancien, nouveau) {
@@ -3709,7 +3816,8 @@ const app = {
 
     updateBudgetTotal() {
         const total = Object.values(this.data.budgets).reduce((sum, v) => sum + v, 0);
-        document.getElementById('budget-total-alloue').textContent = this.formatCurrency(total);
+        const el = document.getElementById('budget-total-alloue');
+        if (el) el.textContent = this.formatCurrency(total);
     },
 
     supprimerCategorieBudget(cat) {
@@ -4497,7 +4605,9 @@ const app = {
         const typeSel = document.getElementById('rev-type');
         if (typeSel) typeSel.value = 'Salaire';
         if (montant) montant.dataset.prefill = '';
+        this._syncRevChips();
         this._prefillRevenu();
+        this._renderRevRecents();
         // Afficher l'historique récent
         this.refreshHistoriqueRevenus();
         // Ouvrir le bottom sheet
@@ -4505,6 +4615,57 @@ const app = {
         if (overlay) overlay.classList.add('open');
         // Montant sélectionné : on tape directement le bon chiffre par-dessus
         if (montant) { montant.focus({ preventScroll: true }); montant.select?.(); }
+    },
+
+    _choisirTypeRevenu(type) {
+        const sel = document.getElementById('rev-type');
+        if (sel) sel.value = type;
+        this._syncRevChips();
+        this._prefillRevenu();
+    },
+
+    _syncRevChips() {
+        const t = document.getElementById('rev-type')?.value;
+        document.querySelectorAll('#rev-type-chips .qa-chip').forEach(c => c.classList.toggle('active', c.dataset.type === t));
+    },
+
+    _onRevKey(e) {
+        if (e.key === 'Enter') { e.preventDefault(); this.ajouterRevenu(); }
+    },
+
+    _renderRevRecents() {
+        const box = document.getElementById('rev-recents');
+        if (!box) return;
+        const recents = (this.data.revenus || []).slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 4);
+        this._revRecents = recents;
+        const moisCourant = this._jourLocal().slice(0, 7);
+        const recuMois = (this.data.revenus || []).filter(r => (r.mois || (r.date || '').slice(0, 7)) === moisCourant).reduce((s, r) => s + r.montant, 0);
+        const nomMois = new Date().toLocaleDateString('fr-FR', { month: 'long' });
+        if (!recents.length) { box.innerHTML = ''; return; }
+        const court = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '';
+        box.innerHTML = `
+            <div class="rr-head"><span class="qa-label" style="margin:0">Derniers revenus</span><span class="rr-mois">${nomMois} : ${this.formatCurrency(recuMois)} reçu${recuMois > 0 ? 's' : ''}</span></div>
+            <div class="rr-list">${recents.map((r, i) => `
+                <div class="rr-row">
+                    <div class="rr-info"><b>${this._esc(r.type || 'Revenu')}</b> <span>${this._esc(r.note || '')}${r.note ? ' · ' : ''}${court(r.date)}</span></div>
+                    <b class="rr-amt">+${this.formatCurrency(r.montant)}</b>
+                    <button type="button" class="rr-re" title="Réutiliser" onclick="app._reutiliserRevenu(${i})">↺<span> Réutiliser</span></button>
+                </div>`).join('')}</div>`;
+    },
+
+    _reutiliserRevenu(i) {
+        const r = (this._revRecents || [])[i];
+        if (!r) return;
+        const sel = document.getElementById('rev-type');
+        if (sel && [...sel.options].some(o => o.value === r.type)) sel.value = r.type;
+        this._syncRevChips();
+        const montant = document.getElementById('rev-montant');
+        const note = document.getElementById('rev-note');
+        if (montant) { montant.value = r.montant; montant.dataset.prefill = ''; }
+        if (note) { note.value = r.note || ''; note.dataset.prefill = ''; }
+        const hint = document.getElementById('rev-prefill-hint');
+        if (hint) hint.textContent = '↺ repris de ton revenu du ' + new Date(r.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+        montant?.focus({ preventScroll: true }); montant?.select?.();
     },
 
     // Pré-remplit avec le dernier revenu du même type (ex. dernier salaire), à corriger si besoin
@@ -4549,6 +4710,7 @@ const app = {
         const mois = date.substring(0, 7);
         this.data.revenus.push({ id: crypto.randomUUID(), date, mois, type, montant, note, compteId: compteId || null });
         this.save();
+        this._refreshBudgetHeroAndCats?.();
         this.refreshRevenus();
         this.refreshHistoriqueRevenus();
         this.refreshDashboard();

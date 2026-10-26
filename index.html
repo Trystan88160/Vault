@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh50">
+    <link rel="stylesheet" href="app.css?v=enh51">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -133,20 +133,19 @@
 <div id="input-overlay" onclick="app.closeInputModal()" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);display:none;z-index:1150;cursor:pointer"></div>
 
 <!-- Modal Gérer les catégories -->
-<div class="modal" id="budgetsModal" style="max-width:560px">
+<div class="modal" id="budgetsModal" style="max-width:600px">
     <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;padding:1.5rem 2rem 1rem">
-        <h2 class="modal-title">✦ Gérer les catégories</h2>
-        <button onclick="app.closeBudgetsModal()" style="width:28px;height:28px;border-radius:50%;background:var(--bg-primary);border:none;cursor:pointer;font-size:0.78rem;color:var(--text-secondary);display:flex;align-items:center;justify-content:center">✕</button>
+        <h2 class="modal-title">Gérer les catégories</h2>
+        <button onclick="app.closeBudgetsModal()" style="width:28px;height:28px;border-radius:50%;background:var(--bg-primary);border:none;cursor:pointer;font-size:0.78rem;color:var(--text-secondary)">✕</button>
     </div>
-    <div class="modal-body" style="padding:1.25rem 2rem">
+    <div class="bc-summary" id="bc-summary"></div>
+    <div class="modal-body bc-body">
         <div id="budgets-container"></div>
-        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
-            <strong style="font-size:.85rem">Budget total alloué : <span id="budget-total-alloue">0 €</span></strong>
-            <button class="btn btn-primary btn-small" onclick="app.openAddCategoryModal()">+ Catégorie</button>
-        </div>
+        <span id="budget-total-alloue" hidden></span>
     </div>
-    <div class="modal-footer">
-        <button class="vp-btn-cancel" onclick="app.closeBudgetsModal()">Fermer</button>
+    <div class="modal-footer bc-footer">
+        <button class="btn-secondary" onclick="app.openAddCategoryModal()">＋ Catégorie</button>
+        <button onclick="app.terminerCategories()">Terminé</button>
     </div>
 </div>
 
@@ -1432,7 +1431,7 @@
 </div>
 
 
-<script src="app.js?v=enh50" defer></script>
+<script src="app.js?v=enh51" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">
@@ -1445,39 +1444,21 @@
       <button onclick="app.closeBsRevenus()" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;color:var(--text-secondary);font-size:.8rem">✕</button>
     </div>
     <div class="bs-body">
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.65rem;margin-bottom:.75rem">
-        <div class="form-group">
-          <label class="form-label">Montant (€)</label>
-          <input type="number" inputmode="decimal" class="form-input" id="rev-montant" placeholder="0.00" step="0.01" style="font-size:1rem" oninput="this.dataset.prefill=''">
-          <div id="rev-prefill-hint" style="font-size:.68rem;color:var(--accent-primary);margin-top:.3rem;min-height:1em"></div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Type</label>
-          <select class="form-select" id="rev-type" onchange="app._prefillRevenu()">
-            <option value="Salaire">Salaire</option>
-            <option value="Prime">Prime / Bonus</option>
-            <option value="Locatif">Revenu locatif</option>
-            <option value="Dividende">Dividende</option>
-            <option value="Remboursement">Remboursement</option>
-            <option value="Autre">Autre</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Date</label>
-          <input type="date" class="form-input" id="rev-date">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Note</label>
-          <input type="text" class="form-input" id="rev-note" placeholder="Source, employeur..." oninput="this.dataset.prefill=''">
-        </div>
-        <div class="form-group" id="rev-compte-group" style="display:none">
-          <label class="form-label">Compte bancaire</label>
-          <select class="form-select" id="rev-compte">
-            <option value="">— Aucun —</option>
-          </select>
-        </div>
+      <div class="qa-amount-wrap">
+        <input type="number" inputmode="decimal" class="bs-input qa-amount" id="rev-montant" placeholder="0,00" step="0.01" oninput="this.dataset.prefill=''" onkeydown="app._onRevKey(event)">
+        <span class="qa-euro">€</span>
       </div>
-      <div id="revenus-history" style="margin-top:.5rem"></div>
+      <div id="rev-prefill-hint" class="qa-hint"></div>
+      <div class="qa-chips" id="rev-type-chips"><button type="button" class="qa-chip" data-type="Salaire" onclick="app._choisirTypeRevenu(this.dataset.type)" onkeydown="app._onRevKey(event)">Salaire</button><button type="button" class="qa-chip" data-type="Prime" onclick="app._choisirTypeRevenu(this.dataset.type)" onkeydown="app._onRevKey(event)">Prime</button><button type="button" class="qa-chip" data-type="Remboursement" onclick="app._choisirTypeRevenu(this.dataset.type)" onkeydown="app._onRevKey(event)">Remboursement</button><button type="button" class="qa-chip" data-type="Locatif" onclick="app._choisirTypeRevenu(this.dataset.type)" onkeydown="app._onRevKey(event)">Locatif</button><button type="button" class="qa-chip" data-type="Dividende" onclick="app._choisirTypeRevenu(this.dataset.type)" onkeydown="app._onRevKey(event)">Dividende</button><button type="button" class="qa-chip" data-type="Autre" onclick="app._choisirTypeRevenu(this.dataset.type)" onkeydown="app._onRevKey(event)">Autre</button></div>
+      <select id="rev-type" style="display:none" onchange="app._prefillRevenu()"><option value="Salaire">Salaire</option><option value="Prime">Prime</option><option value="Remboursement">Remboursement</option><option value="Locatif">Locatif</option><option value="Dividende">Dividende</option><option value="Autre">Autre</option></select>
+      <div class="qa-meta" style="margin-top:.55rem">
+        <input type="text" class="bs-input" id="rev-note" placeholder="Source, employeur…" autocomplete="off" style="flex:1;min-width:150px" oninput="this.dataset.prefill=''" onkeydown="app._onRevKey(event)">
+        <input type="date" class="bs-input" id="rev-date" onkeydown="app._onRevKey(event)">
+      </div>
+      <div id="rev-compte-group" style="display:none;margin-top:.5rem">
+        <select class="bs-input" id="rev-compte" style="width:100%"><option value="">— Aucun —</option></select>
+      </div>
+      <div id="rev-recents"></div>
     </div>
     <div class="bs-footer">
       <button class="bs-btn-cancel" onclick="app.closeBsRevenus()">Annuler</button>
