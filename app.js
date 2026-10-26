@@ -532,6 +532,7 @@ const app = {
         document.addEventListener('mousedown', e => {
             const active = document.querySelector('.modal.active');
             _vpMouseDownInsideModal = !!(active && active.contains(e.target));
+            this._vpMouseDownInside = _vpMouseDownInsideModal;   // lisible depuis les autres fonctions
         });
         globalOverlay.addEventListener('click', () => {
             if (_vpMouseDownInsideModal) return; // drag depuis l'intérieur → on ignore
@@ -4307,7 +4308,7 @@ const app = {
             vpOverlay.classList.add('vp-active');
             requestAnimationFrame(() => vpOverlay.classList.add('vp-visible'));
             vpOverlay._editDepHandler = () => {
-                if (_vpMouseDownInsideModal) return;
+                if (this._vpMouseDownInside) return;
                 this._fermerEditDepense();
             };
             vpOverlay.addEventListener('click', vpOverlay._editDepHandler);
@@ -4401,7 +4402,7 @@ const app = {
             vpOverlay.classList.add('vp-active');
             requestAnimationFrame(() => vpOverlay.classList.add('vp-visible'));
             vpOverlay._editDepHandler = () => {
-                if (_vpMouseDownInsideModal) return;
+                if (this._vpMouseDownInside) return;
                 this._fermerEditDepense();
             };
             vpOverlay.addEventListener('click', vpOverlay._editDepHandler);
@@ -7651,8 +7652,33 @@ const app = {
         container.innerHTML = html;
     },
 
-    ouvrirClassif503020() {
+    // « Auto » = moitié besoin / moitié envie. Avant, Auto devinait d'après le nom de la catégorie :
+    // une seule fois, on enregistre ces devinettes comme de vrais choix pour que les chiffres ne bougent pas.
+    _migrerClassif503020() {
         if (!this.data.classif503020) this.data.classif503020 = {};
+        if (this.data.parametres?.classif503020Auto5050) return false;
+        const ov = this.data.classif503020;
+        const exclus = this.data.categoriesEpargne || ['ÉPARGNE'];
+        const besoinsKeys = ['MANGER', 'CARBU', 'TRANSPORT', 'LOYER', 'SANTE', 'FACTURE', 'ABONNEMENT'];
+        const enviesKeys  = ['LOISIR', 'BAR', 'VETEMENT', 'SHOPPING', 'RESTAURANT', 'SORTIE'];
+        Object.keys(this.data.budgets || {}).forEach(cat => {
+            if (ov[cat]) return;
+            const up = cat.toUpperCase();
+            if (exclus.some(e => up.includes(e.toUpperCase()))) return;
+            if (besoinsKeys.some(k => up.includes(k))) ov[cat] = 'besoin';
+            else if (enviesKeys.some(k => up.includes(k))) ov[cat] = 'envie';
+        });
+        if (this.data.parametres) this.data.parametres.classif503020Auto5050 = true;
+        return true;
+    },
+
+    _part503020(cat) {
+        const o = (this.data.classif503020 || {})[cat];
+        return o === 'besoin' ? { b: 1, e: 0 } : o === 'envie' ? { b: 0, e: 1 } : { b: 0.5, e: 0.5 };
+    },
+
+    ouvrirClassif503020() {
+        if (this._migrerClassif503020()) this.save();
         const overrides  = this.data.classif503020;
         const exclus     = this.data.categoriesEpargne || ['ÉPARGNE'];
         const besoinsKeys = ['MANGER', 'CARBU', 'TRANSPORT', 'LOYER', 'SANTE', 'FACTURE', 'ABONNEMENT'];
@@ -7660,12 +7686,8 @@ const app = {
         const cats = Object.keys(this.data.budgets).sort();
 
         const getClassif = cat => {
-            if (overrides[cat]) return overrides[cat];
             if (exclus.some(e => cat.toUpperCase().includes(e.toUpperCase()))) return 'epargne';
-            const catUp = cat.toUpperCase();
-            if (besoinsKeys.some(k => catUp.includes(k))) return 'besoin';
-            if (enviesKeys.some(k => catUp.includes(k))) return 'envie';
-            return 'auto';
+            return overrides[cat] || 'auto';
         };
 
         const mkBadge = (cat, type, current) => {
@@ -7700,17 +7722,16 @@ const app = {
                 <p style="font-size:.75rem;color:var(--text-secondary);margin:0 0 .75rem;line-height:1.5">
                     Choisis pour chaque catégorie si c'est un <strong>besoin</strong> (cible ≤ 50 % du revenu) ou une <strong>envie</strong> (≤ 30 %) ;
                     le reste du revenu compte comme <strong>épargne</strong> (≥ 20 %).<br>
-                    <strong>🔀 Auto</strong> = Vault décide d'après le nom de la catégorie.
+                    <strong>🔀 Auto</strong> = la catégorie compte moitié en besoin, moitié en envie.
                 </p>
                 <div style="display:flex;flex-direction:column;gap:.55rem">
                 ${cats.map(cat => {
                     const current = getClassif(cat);
                     const isEpargne = exclus.some(e => cat.toUpperCase().includes(e.toUpperCase()));
-                    const isOverridden = !!overrides[cat];
                     return `<div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.6rem .85rem;background:var(--bg-secondary);border-radius:12px;flex-wrap:wrap">
                         <div style="display:flex;align-items:center;gap:.5rem;min-width:0">
                             <span style="font-size:.82rem;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">${cat}</span>
-                            ${isOverridden ? '<span style="font-size:.55rem;font-family:DM Mono,monospace;background:rgba(168,85,247,.15);color:var(--accent-primary);padding:.1rem .4rem;border-radius:100px;white-space:nowrap">forcé</span>' : ''}
+                            
                         </div>
                         <div style="display:flex;gap:.3rem;flex-wrap:wrap">
                             ${isEpargne ? mkBadge(cat,'epargne',current) : `${mkBadge(cat,'besoin',current)}${mkBadge(cat,'envie',current)}${mkBadge(cat,'auto',current)}`}
@@ -7730,8 +7751,15 @@ const app = {
 
         renderModal();
         this._classif503020RenderFn = renderModal;
-        modal.style.display = 'block';
-        document.getElementById('overlay').style.display = 'block';
+        modal.style.display = '';
+        modal.classList.remove('closing');
+        modal.classList.add('active');
+        // Voile gris ; le clic à côté est géré par le système de fenêtres (bouton « Fermer »)
+        const vp = document.getElementById('vp-global-overlay');
+        if (vp) {
+            vp.classList.add('vp-active');
+            requestAnimationFrame(() => vp.classList.add('vp-visible'));
+        }
     },
 
     _setClassif503020(cat, type) {
@@ -7757,8 +7785,12 @@ const app = {
 
     _closeClassif503020Modal() {
         const modal = document.getElementById('classif503020Modal');
-        if (modal) modal.style.display = 'none';
-        document.getElementById('overlay').style.display = 'none';
+        if (modal) modal.classList.remove('active');
+        const vp = document.getElementById('vp-global-overlay');
+        if (vp && !document.querySelector('.modal.active')) {
+            vp.classList.remove('vp-visible');
+            setTimeout(() => vp.classList.remove('vp-active'), 260);
+        }
         this._classif503020RenderFn = null;
     },
 
@@ -7772,18 +7804,12 @@ const app = {
         });
         const { total: revenus } = this.getRevenusMois(y, m);
         if (!(revenus > 0)) return null;
-        const besoinsKeys = ['MANGER', 'CARBU', 'TRANSPORT', 'LOYER', 'SANTE', 'FACTURE', 'ABONNEMENT'];
-        const enviesKeys  = ['LOISIR', 'BAR', 'VETEMENT', 'SHOPPING', 'RESTAURANT', 'SORTIE'];
-        const overrides   = this.data.classif503020 || {};
+        this._migrerClassif503020();
         let besoins = 0, envies = 0;
         deps.forEach(d => {
-            const o = overrides[d.categorie];
-            if (o === 'besoin') { besoins += d.montant; return; }
-            if (o === 'envie')  { envies  += d.montant; return; }
-            const up = (d.categorie || '').toUpperCase();
-            if (besoinsKeys.some(k => up.includes(k))) besoins += d.montant;
-            else if (enviesKeys.some(k => up.includes(k))) envies += d.montant;
-            else { besoins += d.montant / 2; envies += d.montant / 2; }
+            const p = this._part503020(d.categorie);
+            besoins += d.montant * p.b;
+            envies  += d.montant * p.e;
         });
         const epargne = Math.max(0, revenus - besoins - envies);
         const pct = v => Math.round(v / revenus * 100);
@@ -7846,21 +7872,12 @@ const app = {
         const base = revenuTotal > 0 ? revenuTotal : totalDepenses;
         if (base === 0) return;
 
-        const besoinsKeys = ['MANGER', 'CARBU', 'TRANSPORT', 'LOYER', 'SANTE', 'FACTURE', 'ABONNEMENT'];
-        const enviesKeys  = ['LOISIR', 'BAR', 'VETEMENT', 'SHOPPING', 'RESTAURANT', 'SORTIE'];
-        const overrides   = this.data.classif503020 || {};
-
+        this._migrerClassif503020();
         let besoins = 0, envies = 0;
         depEffectives.forEach(d => {
-            const cat = d.categorie;
-            const override = overrides[cat];
-            if (override === 'besoin') { besoins += d.montant; return; }
-            if (override === 'envie')  { envies  += d.montant; return; }
-
-            const catUp = cat.toUpperCase();
-            if (besoinsKeys.some(k => catUp.includes(k))) besoins += d.montant;
-            else if (enviesKeys.some(k => catUp.includes(k))) envies += d.montant;
-            else { besoins += d.montant * 0.5; envies += d.montant * 0.5; }
+            const p = this._part503020(d.categorie);
+            besoins += d.montant * p.b;
+            envies  += d.montant * p.e;
         });
 
         const epargne = revenuTotal > 0
@@ -9865,10 +9882,13 @@ const app = {
             bycat[dep.categorie] += dep.montant;
         });
         const allCats = new Set([...Object.keys(this.data.budgets), ...Object.keys(bycat)]);
+        const exclusEp = this.data.categoriesEpargne || ['ÉPARGNE'];
+        const estEp = cat => exclusEp.some(e => cat.toUpperCase().includes(e.toUpperCase()));
         const catData = Array.from(allCats)
-            .map(cat => ({ cat, spent: bycat[cat] || 0, budget: this.data.budgets[cat] || 0 }))
+            .map(cat => ({ cat, spent: bycat[cat] || 0, budget: this.data.budgets[cat] || 0, ep: estEp(cat) }))
             .filter(c => c.spent > 0 || c.budget > 0)          // ex. ÉPARGNE 0 € / 0 € : masquée
             .sort((a, b) => {
+                if (a.ep !== b.ep) return a.ep ? 1 : -1;       // l'épargne n'est pas un dépassement : en dernier
                 const pa = a.budget > 0 ? a.spent / a.budget : (a.spent > 0 ? Infinity : 0);
                 const pb = b.budget > 0 ? b.spent / b.budget : (b.spent > 0 ? Infinity : 0);
                 const overA = pa >= 1, overB = pb >= 1;
@@ -9883,7 +9903,20 @@ const app = {
         }
         const getBar = pct => pct >= 100 ? 'linear-gradient(90deg,#f44336,#e57373)' : pct >= 80 ? 'linear-gradient(90deg,#ff9800,#ffb74d)' : 'linear-gradient(90deg,var(--accent-gradient-start),var(--accent-gradient-end))';
         const getBadge = pct => pct >= 100 ? 'danger' : pct >= 80 ? 'warn' : 'ok';
-        container.innerHTML = catData.map(({ cat, spent, budget }) => {
+        container.innerHTML = catData.map(({ cat, spent, budget, ep }) => {
+            if (ep) {
+                // Catégorie d'épargne : un virement mis de côté, pas une dépense en trop
+                return `<div class="budget-cat-card budget-cat-card--click" onclick="app.openCatDetail(decodeURIComponent('${encodeURIComponent(cat)}'))">
+                <div class="budget-cat-top">
+                    <div class="budget-cat-left">
+                        <div class="budget-cat-icon">${this._getCatEmoji(cat)}</div>
+                        <div class="budget-cat-text"><div class="budget-cat-name">${this._esc(cat)}</div><div class="budget-cat-amounts">${this.formatCurrency(spent)} mis de côté</div></div>
+                    </div>
+                    <span class="cat-pct-badge" style="color:var(--success)">💰</span>
+                </div>
+                <div class="budget-cat-progress-wrap"><div class="budget-cat-progress"><div class="budget-cat-progress-fill" style="width:${spent > 0 ? 100 : 0}%;background:linear-gradient(90deg,#00c853,#69f0ae)"></div></div></div>
+            </div>`;
+            }
             const pct = budget > 0 ? Math.round(spent / budget * 100) : (spent > 0 ? 100 : 0);
             const fillPct = budget > 0 ? Math.min(spent / budget * 100, 100) : (spent > 0 ? 100 : 0);
             const emoji = this._getCatEmoji(cat);
