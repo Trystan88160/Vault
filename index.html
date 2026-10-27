@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh54">
+    <link rel="stylesheet" href="app.css?v=enh55">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -1270,7 +1270,7 @@
 
 <!-- 🎯 Objectifs -->
 <div data-card-id="bilan-objectifs" data-tab="bilan"><div class="card bl-tab-card">
-  <div class="bl-card-head"><h2 class="card-title" style="margin:0">🎯 Objectifs</h2><button class="bl-btn" onclick="app.ouvrirAjoutObjectif()">＋ Objectif</button></div>
+  <div class="bl-card-head"><h2 class="card-title" style="margin:0">🎯 Objectifs</h2><div class="bl-head-btns"><button class="bl-btn" id="obj-rep-btn" onclick="app.ouvrirRepartition()" style="display:none" title="Répartir mes comptes entre les objectifs">⚖ Répartir</button><button class="bl-btn" onclick="app.ouvrirAjoutObjectif()">＋ Objectif</button></div></div>
   <div id="objectifs-list"></div>
 </div></div>
 
@@ -1377,7 +1377,7 @@
 </div>
 
 
-<script src="app.js?v=enh54" defer></script>
+<script src="app.js?v=enh55" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">
