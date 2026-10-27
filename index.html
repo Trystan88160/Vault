@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh53">
+    <link rel="stylesheet" href="app.css?v=enh54">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -651,6 +651,16 @@
   </div>
 </div>
 
+<!-- MODAL BILAN ANNUEL -->
+<div class="budget-modal-box bl-modal" id="modal-bilan-annuel" style="max-width:920px">
+  <div class="budget-modal-body" id="bl-annuel-body"></div>
+</div>
+
+<!-- MODAL RAPPORT MENSUEL -->
+<div class="budget-modal-box bl-modal" id="modal-bilan-rapport" style="max-width:720px">
+  <div class="budget-modal-body" id="bl-rapport-body"></div>
+</div>
+
 <!-- MODAL COMPARAISON -->
 <div class="budget-modal-box" id="modal-budget-comp">
   <div class="budget-modal-header">
@@ -1252,98 +1262,34 @@
 <div id="tab-bilan" class="tab-content">
 <div class="tab-customize-bar"><button class="tab-customize-btn" onclick="app.openTabCustomizer('bilan')">⚙️ Personnaliser l'onglet</button><button class="tab-customize-btn tab-help-btn" onclick="app.openHelp('bilan')" title="Aide">❓ Aide</button></div>
 
-<!-- Bilan annuel (dépliant) -->
-<div data-card-id="bilan-annuel" data-tab="bilan"><div class="card" style="padding:0;overflow:hidden">
-<div onclick="app.toggleSection('bilan-annuel-body','bilan-annuel-arrow','bilan-annuel-trigger')" id="bilan-annuel-trigger" style="display:flex;justify-content:space-between;align-items:center;padding:1.4rem 2rem;cursor:pointer;user-select:none;border-bottom:1px solid transparent;transition:border-color .2s">
-  <h2 class="card-title" style="margin:0">🏅 Bilan annuel</h2>
-  <span id="bilan-annuel-arrow" style="font-size:1.3rem;color:var(--text-tertiary);transition:transform 0.25s ease;line-height:1">›</span>
-</div>
-<div id="bilan-annuel-body" style="display:none;padding:1.5rem 2rem">
-  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.25rem">
-    <select class="form-select" id="bilan-annee" style="padding:0.4rem 0.6rem;font-size:0.8rem;width:auto" onchange="app.refreshBilanAnnuel()"></select>
-  </div>
-  <div id="bilan-annuel-container"><div class="empty-state"><div class="empty-state-icon">🏅</div><div>Pas encore assez de données pour cette année</div></div></div>
-</div>
+<!-- Ton année en un coup d'œil -->
+<div data-card-id="bilan-annuel" data-tab="bilan"><div id="bl-hero-tab"></div></div>
+
+<!-- Bilan annuel + rapport mensuel -->
+<div data-card-id="bilan-rapport" data-tab="bilan"><div class="bl-row bl-st bl-reports" id="bl-reports"></div></div>
+
+<!-- 🎯 Objectifs -->
+<div data-card-id="bilan-objectifs" data-tab="bilan"><div class="card bl-tab-card">
+  <div class="bl-card-head"><h2 class="card-title" style="margin:0">🎯 Objectifs</h2><button class="bl-btn" onclick="app.ouvrirAjoutObjectif()">＋ Objectif</button></div>
+  <div id="objectifs-list"></div>
 </div></div>
 
-<!-- Rapport mensuel (dépliant) -->
-<div data-card-id="bilan-rapport" data-tab="bilan"><div class="card" style="padding:0;overflow:hidden">
-<div onclick="app.toggleSection('rapport-body','rapport-arrow','rapport-trigger')" id="rapport-trigger" style="display:flex;justify-content:space-between;align-items:center;padding:1.4rem 2rem;cursor:pointer;user-select:none;border-bottom:1px solid transparent;transition:border-color .2s">
-  <h2 class="card-title" style="margin:0">📄 Rapport mensuel</h2>
-  <span id="rapport-arrow" style="font-size:1.3rem;color:var(--text-tertiary);transition:transform 0.25s ease;line-height:1">›</span>
-</div>
-<div id="rapport-body" style="display:none;padding:1.5rem 2rem">
-  <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1.25rem">
-    <select class="form-select" id="rapport-mois" style="padding:0.4rem 0.6rem;font-size:0.8rem;width:auto"></select>
-    <button class="btn btn-small" onclick="app.genererRapport()">Générer</button>
-    <button class="btn btn-small btn-secondary" onclick="app.imprimerRapport()" id="btn-imprimer" style="display:none">🖨 Imprimer</button>
+<!-- 📝 Notes -->
+<div data-card-id="bilan-notes" data-tab="bilan"><div class="card bl-tab-card">
+  <div class="bl-card-head"><h2 class="card-title" style="margin:0">📝 Notes</h2><button class="bl-btn" onclick="app.openBsNote()">＋ Note</button></div>
+  <div id="notes-list"></div>
+  <!-- Inputs cachés pour compatibilité JS -->
+  <div style="display:none">
+    <input type="month" id="note-mois">
+    <select id="note-tag">
+      <option value="Général">Général</option>
+      <option value="Dépense exceptionnelle">Dépense exceptionnelle</option>
+      <option value="Revenu exceptionnel">Revenu exceptionnel</option>
+      <option value="Événement important">Événement important</option>
+      <option value="Objectif atteint">Objectif atteint 🎉</option>
+    </select>
+    <textarea id="note-texte"></textarea>
   </div>
-  <div id="rapport-container"><div class="empty-state"><div class="empty-state-icon">📄</div><div>Sélectionne un mois et génère ton rapport</div></div></div>
-</div>
-</div></div>
-
-<!-- 🎯 Objectifs (fusionnés dans Bilan) -->
-<div data-card-id="bilan-objectifs" data-tab="bilan"><div class="card" style="padding:0;overflow:hidden">
-<div onclick="app.toggleSection('obj-body','obj-arrow','obj-trigger')" id="obj-trigger" style="display:flex;justify-content:space-between;align-items:center;padding:1.4rem 2rem;cursor:pointer;user-select:none;border-bottom:1px solid transparent;transition:border-color .2s">
-  <div style="display:flex;align-items:center;gap:1rem">
-    <h2 class="card-title" style="margin:0">🎯 Objectifs</h2>
-    <div style="display:flex;gap:.65rem">
-      <div style="background:var(--bg-secondary);border-radius:8px;padding:.2rem .6rem;text-align:center">
-        <div style="font-size:.55rem;color:var(--text-tertiary);font-family:'DM Mono',monospace">actifs</div>
-        <div style="font-family:'Outfit',sans-serif;font-size:.9rem;font-weight:700;color:var(--accent-primary)" id="obj-count">0</div>
-      </div>
-      <div style="background:var(--bg-secondary);border-radius:8px;padding:.2rem .6rem;text-align:center">
-        <div style="font-size:.55rem;color:var(--text-tertiary);font-family:'DM Mono',monospace">épargne/mois</div>
-        <div style="font-family:'Outfit',sans-serif;font-size:.9rem;font-weight:700;color:var(--text-primary)" id="obj-mensuel-total">0 €</div>
-      </div>
-    </div>
-  </div>
-  <span id="obj-arrow" style="font-size:1.3rem;color:var(--text-tertiary);transition:transform 0.25s ease;line-height:1">›</span>
-</div>
-<div id="obj-body" style="display:none;padding:1.5rem 2rem">
-  <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
-    <button class="btn-vault-primary" onclick="app.ouvrirAjoutObjectif()">＋ Nouvel objectif</button>
-  </div>
-  <div id="objectifs-list"><div class="empty-state"><div class="empty-state-icon">🎯</div><div>Aucun objectif défini</div></div></div>
-  <div id="objectifs-calcul-card" style="display:none;margin-top:1rem">
-    <div id="objectifs-calcul"></div>
-    <div style="margin-top:1rem;padding:.85rem 1rem;background:var(--bg-secondary);border-radius:12px;border:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:.68rem;font-weight:600;color:var(--text-tertiary)">Total à épargner / mois</div>
-        <div style="font-size:.75rem;color:var(--text-secondary)">Pour atteindre tous vos objectifs</div>
-      </div>
-      <div class="stat-value accent" id="obj-grand-total" style="font-size:1.3rem">0 €</div>
-    </div>
-  </div>
-  <!-- stat cachée pour compat JS -->
-  <span id="obj-total-cible" style="display:none">0 €</span>
-</div>
-</div></div>
-
-<!-- Notes mensuelles — card compacte -->
-<div data-card-id="bilan-notes" data-tab="bilan"><div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;padding:1.25rem 1.75rem">
-  <div>
-    <div style="font-size:.62rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:.25rem">Bilan</div>
-    <div class="card-title" style="margin:0">📝 Notes Mensuelles</div>
-  </div>
-  <button class="btn-vault-primary" onclick="app.openBsNote()">＋ Ajouter une note</button>
-</div>
-<!-- Inputs cachés pour compatibilité JS -->
-<div style="display:none">
-  <input type="month" id="note-mois">
-  <select id="note-tag">
-    <option value="Général">Général</option>
-    <option value="Dépense exceptionnelle">Dépense exceptionnelle</option>
-    <option value="Revenu exceptionnel">Revenu exceptionnel</option>
-    <option value="Événement important">Événement important</option>
-    <option value="Objectif atteint">Objectif atteint 🎉</option>
-  </select>
-  <textarea id="note-texte"></textarea>
-</div></div> <!-- fin bilan-notes -->
-
-<div data-card-id="bilan-hist-notes" data-tab="bilan"><div class="card">
-<div class="card-header"><h2 class="card-title">Historique des notes</h2></div>
-<div id="notes-list"><div class="empty-state"><div class="empty-state-icon">📝</div><div>Aucune note enregistrée</div></div></div>
 </div></div>
 </div>
 
@@ -1431,7 +1377,7 @@
 </div>
 
 
-<script src="app.js?v=enh53" defer></script>
+<script src="app.js?v=enh54" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">

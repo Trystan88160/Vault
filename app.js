@@ -317,7 +317,7 @@ const app = {
         // Fermeture modales budget avec Échap
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
-                ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','modal-cat-detail'].forEach(id => {
+                ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport'].forEach(id => {
                     document.getElementById(id)?.classList.remove('open');
                 });
                 const ov = document.getElementById('budget-modal-overlay');
@@ -566,7 +566,7 @@ const app = {
             // budget-modal-overlay : contenu = les .budget-modal-box.open
             const openBudgetModal = ['modal-budget-comp','modal-budget-regle','modal-budget-rec',
                 'modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap',
-                'modal-all-cats','modal-emoji-cat','modal-cat-detail']
+                'modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport']
                 .map(id => document.getElementById(id))
                 .find(el => el?.classList.contains('open'));
             this._budgetMouseDownInside = !!(openBudgetModal && openBudgetModal.contains(e.target));
@@ -1497,7 +1497,7 @@ const app = {
         this._currentTab = realName;
         if (realName === 'dashboard') { this.refreshDashboard(); this.refreshHeatmap(); }
         if (realName === 'depenses') { this.analyseDepenses(); this.refreshRegle503020(); this.refreshComparaison(); this.refreshRevenus(); this.refreshHistoriqueRevenus(); this.refreshPointage(); }
-        if (realName === 'bilan') { this.refreshObjectifs(); this.refreshNotes(); this.refreshBilanAnnuel(); this.initRapportSelect(); this.initBilanSelect(); }
+        if (realName === 'bilan') { this.refreshNotes(); this.refreshBilanAnnuel(); }
         if (realName === 'patrimoine') { this.afficherPatrimoine(); this.refreshStatsPatrimoine(); }
         if (realName === 'pea') { this.refreshLignesPEA(); }
 
@@ -1757,410 +1757,457 @@ const app = {
         if (conseil) conseil.innerHTML = `💡 En ${horizon} ans tu multiplies ta mise par <strong>${mult}x</strong>. Les intérêts représentent <strong>${((interets/capital)*100).toFixed(0)}%</strong> du capital — la magie des intérêts composés.`;
     },
 
-    initBilanSelect() {
-        const annees = [...new Set(this.data.depenses.map(d => new Date(d.date).getFullYear()))].sort().reverse();
-        if (annees.length === 0) return;
-        const sel = document.getElementById('bilan-annee');
-        if (!sel) return;
+    /* ── Bilan : calculs ─────────────────────────────────── */
+    _blMois: ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'],
+    _blMoisCourt: ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'],
+    _blMoisAbr: ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'],
 
-        const currentVal = parseInt(sel.value);
-        const defaultAnnee = annees.includes(currentVal) ? currentVal : (annees.includes(new Date().getFullYear()) ? new Date().getFullYear() : annees[0]);
-        sel.innerHTML = annees.map(a => `<option value="${a}" ${a === defaultAnnee ? 'selected' : ''}>${a}</option>`).join('');
+    _blEur(v) { return Math.round(v).toLocaleString('fr-FR') + ' €'; },
+    _blSigne(v) { return (v >= 0 ? '+' : '−') + this._blEur(Math.abs(v)); },
+    _blNomCat(cat) {
+        const n = String(cat || '').replace(/^\p{Emoji}\s*/u, '').trim().toLowerCase();
+        return n.charAt(0).toUpperCase() + n.slice(1);
     },
+    _blCatLabel(cat) {
+        const nom = String(cat || '').replace(/^\p{Emoji}\s*/u, '').trim() || cat;
+        return `${this._getCatEmoji(cat)} ${app._esc(nom)}`;
+    },
+    _blBudgetTotal() {
+        return Object.entries(this.data.budgets || {})
+            .filter(([cat, v]) => v > 0 && !this._estCatEpargne(cat))
+            .reduce((s, [, v]) => s + v, 0);
+    },
+    // Mois (AAAA-MM) qui contiennent au moins une dépense ou un revenu, jusqu'au mois en cours
+    _blMoisDispo() {
+        const cur = this._jourLocal().slice(0, 7);
+        const set = new Set();
+        (this.data.depenses || []).forEach(d => d.date && set.add(d.date.slice(0, 7)));
+        (this.data.revenus || []).forEach(r => r.mois && set.add(r.mois));
+        return [...set].filter(m => m <= cur).sort();
+    },
+    _blAnneesDispo() {
+        return [...new Set(this._blMoisDispo().map(m => +m.slice(0, 4)))].sort();
+    },
+    _blPatrimoineTrie() {
+        return (this.data.patrimoine || []).filter(p => p.mois)
+            .sort((a, b) => (a.date || a.mois).localeCompare(b.date || b.mois));
+    },
+
+    _blStatsAnnee(annee) {
+        const cur = this._jourLocal().slice(0, 7);
+        const curY = +cur.slice(0, 4), curM = +cur.slice(5, 7) - 1;
+        const mois = this._blMoisDispo().filter(m => m.startsWith(annee + '-')).map(m => +m.slice(5, 7) - 1);
+        if (!mois.length) return null;
+        const first = Math.min(...mois);
+        const last = annee === curY ? curM : Math.max(...mois);
+        const months = [];
+        for (let m = first; m <= last; m++) months.push(m);
+
+        const dep = Array(12).fill(0), vir = Array(12).fill(0), rev = Array(12).fill(0), parCat = {};
+        (this.data.depenses || []).forEach(d => {
+            if (!(d.date || '').startsWith(annee + '-')) return;
+            const m = +d.date.slice(5, 7) - 1;
+            if (this._estCatEpargne(d.categorie)) { vir[m] += d.montant; return; }
+            dep[m] += d.montant;
+            parCat[d.categorie] = (parCat[d.categorie] || 0) + d.montant;
+        });
+        let estime = false;
+        months.forEach(m => {
+            const r = this.getRevenusMois(annee, m);
+            rev[m] = r.total;
+            if (r.source !== 'reel') estime = true;
+        });
+        const totRev = months.reduce((s, m) => s + rev[m], 0);
+        const totDep = months.reduce((s, m) => s + dep[m], 0);
+        const totVir = months.reduce((s, m) => s + vir[m], 0);
+        const garde = totRev - totDep;
+        const taux = totRev > 0 ? garde / totRev * 100 : null;
+        const enCours = annee === curY ? curM : -1;
+        const complets = months.filter(m => m !== enCours);
+        const pool = complets.length ? complets : months;
+        const best = pool.reduce((b, m) => (rev[m] - dep[m] > rev[b] - dep[b] ? m : b), pool[0]);
+        const cats = Object.entries(parCat).sort((a, b) => b[1] - a[1]);
+        const budgetTotal = this._blBudgetTotal();
+        const sousBudget = budgetTotal > 0 && complets.length ? complets.filter(m => dep[m] <= budgetTotal).length : null;
+
+        const pats = this._blPatrimoineTrie();
+        const patY = pats.filter(p => p.mois.startsWith(annee + '-'));
+        const avant = pats.filter(p => p.mois < annee + '-01').pop();
+        const patFin = patY.length ? patY[patY.length - 1].total : null;
+        const debut = avant || patY[0];
+        const patDelta = patFin != null && debut && debut !== patY[patY.length - 1] ? patFin - debut.total : null;
+        const patDepuis = avant ? 'depuis le 1er janvier' : debut ? 'depuis ' + this._blMois[+debut.mois.slice(5, 7) - 1] : '';
+
+        const pea = (this.data.suiviPEA || []).filter(p => (p.date || '').startsWith(annee + '-'))
+            .sort((a, b) => a.date.localeCompare(b.date)).pop() || null;
+        let peaPerf = null;
+        if (pea) peaPerf = pea.investi > 0 ? (pea.valeur - pea.investi) / pea.investi * 100 : parseFloat(pea.performance);
+
+        return { annee, months, first, last, enCours, complets, dep, vir, rev, totRev, totDep, totVir, garde, taux, estime,
+                 best, cats, budgetTotal, sousBudget, patFin, patDelta, patDepuis, pea, peaPerf };
+    },
+
+    _blStatsMois(ym) {
+        const y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1;
+        const sommeCats = mo => {
+            const parCat = {}; let dep = 0, vir = 0;
+            (this.data.depenses || []).forEach(d => {
+                if (!(d.date || '').startsWith(mo)) return;
+                if (this._estCatEpargne(d.categorie)) { vir += d.montant; return; }
+                dep += d.montant;
+                parCat[d.categorie] = (parCat[d.categorie] || 0) + d.montant;
+            });
+            return { parCat, dep, vir };
+        };
+        const cur = sommeCats(ym);
+        const r = this.getRevenusMois(y, m);
+        const rev = r.total;
+        const garde = rev - cur.dep;
+        const taux = rev > 0 ? garde / rev * 100 : null;
+        const budgetTotal = this._blBudgetTotal();
+        const budgetPct = budgetTotal > 0 ? cur.dep / budgetTotal * 100 : null;
+
+        // Moyenne par catégorie sur les 6 mois précédents qui ont des dépenses
+        const moisAvant = [];
+        for (let i = 1; i <= 6; i++) moisAvant.push(this._jourLocal(new Date(y, m - i, 1)).slice(0, 7));
+        const actifs = moisAvant.filter(mo => (this.data.depenses || []).some(d => (d.date || '').startsWith(mo)));
+        const moy = {};
+        actifs.forEach(mo => Object.entries(sommeCats(mo).parCat).forEach(([c, v]) => { moy[c] = (moy[c] || 0) + v / actifs.length; }));
+
+        const prevYm = moisAvant[0];
+        const prev = (this.data.depenses || []).some(d => (d.date || '').startsWith(prevYm)) ? sommeCats(prevYm) : null;
+
+        const pats = this._blPatrimoineTrie();
+        const pat = pats.filter(p => p.mois === ym).pop() || null;
+        const patPrev = pats.filter(p => p.mois < ym).pop() || null;
+
+        const notes = (this.data.notes || []).filter(n => n.mois === ym);
+        return { ym, y, m, ...cur, rev, estime: r.source !== 'reel', garde, taux, budgetTotal, budgetPct,
+                 cats: Object.entries(cur.parCat).sort((a, b) => b[1] - a[1]), moy, nMoy: actifs.length,
+                 prevYm, prev, pat, patPrev, notes, enCours: ym === this._jourLocal().slice(0, 7) };
+    },
+
+    _blRapportDefaut() {
+        const dispo = this._blMoisDispo();
+        const cur = this._jourLocal().slice(0, 7);
+        return dispo.filter(m => m < cur).pop() || dispo[dispo.length - 1] || null;
+    },
+
+    /* ── Bilan : onglet ──────────────────────────────────── */
     refreshBilanAnnuel() {
-        this.initBilanSelect();
-        const annee = parseInt(document.getElementById('bilan-annee')?.value) || new Date().getFullYear();
-        const container = document.getElementById('bilan-annuel-container');
-        if (!container) return;
-        const exclus = this.data.categoriesEpargne || ['ÉPARGNE'];
-        const deps = this.data.depenses.filter(d => new Date(d.date).getFullYear() === annee);
-        const revsAnnee = (this.data.revenus||[]).filter(r => r.mois && r.mois.startsWith(annee));
-        if (deps.length === 0 && revsAnnee.length === 0) {
-            container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🏅</div><div>Pas de données pour ${annee}</div></div>`;
+        const heroEl = document.getElementById('bl-hero-tab');
+        const repEl = document.getElementById('bl-reports');
+        this.refreshObjectifs();
+        if (document.getElementById('modal-bilan-annuel')?.classList.contains('open')) this._renderBilanAnnuel();
+        if (document.getElementById('modal-bilan-rapport')?.classList.contains('open')) this._renderRapportMensuel();
+        if (!heroEl || !repEl) return;
+
+        const annees = this._blAnneesDispo();
+        const curY = +this._jourLocal().slice(0, 4);
+        const annee = annees.includes(curY) ? curY : annees[annees.length - 1];
+        const s = annee ? this._blStatsAnnee(annee) : null;
+        if (!s) {
+            heroEl.innerHTML = `<div class="bl-hero"><div class="bl-lbl">Ton bilan</div>
+                <div class="bl-big" style="font-size:1.6rem;margin-top:.6rem">Ton bilan se remplira tout seul</div>
+                <div class="bl-sub" style="margin-top:.35rem">Ajoute tes premières dépenses et revenus dans l'onglet Budget : l'année et chaque mois seront résumés ici.</div></div>`;
+            repEl.innerHTML = '';
             return;
         }
-        const mL = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
-        const now = new Date();
 
-        const parMoisDep = Array(12).fill(0);
-        deps.forEach(d => {
-            if (!exclus.some(e => d.categorie.toUpperCase().includes(e.toUpperCase())))
-                parMoisDep[new Date(d.date).getMonth()] += d.montant;
-        });
-        const totalDepEff = parMoisDep.reduce((s,v) => s+v, 0);
+        const cols = [];
+        cols.push(`<div><div class="bl-sub">${s.garde >= 0 ? 'Mis de côté' : 'Dépensé en trop'}</div>
+            <div class="bl-big bl-big-sm">${this._blEur(Math.abs(s.garde))}</div>
+            <div class="bl-sub">${s.taux != null ? Math.round(s.taux) + ' % de tes revenus' : 'revenus non renseignés'}</div></div>`);
+        if (s.patFin != null) cols.push(`<div><div class="bl-sub">Patrimoine</div>
+            <div class="bl-big bl-big-sm">${this._blEur(s.patFin)}</div>
+            <div class="bl-sub"${s.patDelta != null ? ` style="color:${s.patDelta >= 0 ? '#b9f6ca' : '#ffcdd2'}"` : ''}>${s.patDelta != null ? this._blSigne(s.patDelta) + ' ' + s.patDepuis : 'dernier relevé'}</div></div>`);
+        if (s.sousBudget != null) cols.push(`<div><div class="bl-sub">Mois sous ton budget</div>
+            <div class="bl-big bl-big-sm">${s.sousBudget} / ${s.complets.length}</div>
+            <div class="bl-sub">sous ${this._blEur(s.budgetTotal)} de dépenses</div></div>`);
+        else cols.push(`<div><div class="bl-sub">Dépensé</div>
+            <div class="bl-big bl-big-sm">${this._blEur(s.totDep)}</div>
+            <div class="bl-sub">sur ${s.months.length} mois</div></div>`);
+        heroEl.innerHTML = `<div class="bl-hero" role="button" tabindex="0" onclick="app.openBilanAnnuel(${annee})" style="cursor:pointer">
+            <div class="bl-lbl">Ton année ${annee} en un coup d'œil</div>
+            <div class="bl-row bl-st" style="margin-top:.8rem">${cols.join('')}</div></div>`;
 
-        let totalVirEpargne = 0;
-        deps.forEach(d => {
-            if (exclus.some(e => d.categorie.toUpperCase().includes(e.toUpperCase())))
-                totalVirEpargne += d.montant;
-        });
+        // Carte bilan annuel
+        const best = s.complets.length ? `Meilleur mois : ${this._blMois[s.best]}` : '';
+        const top = s.cats.length ? `plus gros poste : ${this._blNomCat(s.cats[0][0]).toLowerCase()}` : '';
+        const resume = [best, top].filter(Boolean).join(' · ');
+        const carteAn = `<div class="bl-rep">
+            <div class="bl-rep-head"><div class="bl-lbl">Bilan annuel</div><span class="bl-rep-ico">🏅</span></div>
+            <b class="bl-rep-title">${annee}${s.taux != null ? ' · ' + Math.round(s.taux) + ' % épargnés' : ''}</b>
+            <div class="bl-sub">${resume.charAt(0).toUpperCase() + resume.slice(1) || '&nbsp;'}</div>
+            <button class="bl-btn p" onclick="app.openBilanAnnuel(${annee})">Ouvrir le bilan ${annee} ›</button></div>`;
 
-        const parMoisRev = Array(12).fill(0);
-        let totalRevenuAnnuel = 0;
-        for (let m = 0; m < 12; m++) {
-            if (annee === now.getFullYear() && m > now.getMonth()) continue;
-            const { total: rev } = this.getRevenusMois(annee, m);
-            parMoisRev[m] = rev;
-            totalRevenuAnnuel += rev;
+        // Carte rapport mensuel
+        const dispo = this._blMoisDispo();
+        if (!this._blRapportMois || !dispo.includes(this._blRapportMois)) this._blRapportMois = this._blRapportDefaut();
+        const sel = this._blRapportMois;
+        const chips = dispo.slice(-5).map(mo => {
+            const nom = this._blMoisCourt[+mo.slice(5, 7) - 1];
+            return `<button class="bl-chip${mo === sel ? ' on' : ''}" onclick="app._blChoisirMois('${mo}')">${nom}</button>`;
+        }).join('');
+        const sm = this._blStatsMois(sel);
+        const nomMois = this._blMois[sm.m];
+        const ligne = sm.rev > 0
+            ? `${this._blEur(sm.dep)} dépensés · ${this._blSigne(sm.garde)} gardés`
+            : `${this._blEur(sm.dep)} dépensés`;
+        const carteMois = `<div class="bl-rep">
+            <div class="bl-rep-head"><div class="bl-lbl">Rapport mensuel</div><span class="bl-rep-ico">📄</span></div>
+            <div class="bl-chips">${chips}</div>
+            <div class="bl-sub">${nomMois.charAt(0).toUpperCase() + nomMois.slice(1)}${sm.enCours ? ' (en cours)' : ''} : <b style="color:#1e2a4a">${ligne}</b></div>
+            <button class="bl-btn p" onclick="app.openRapportMensuel('${sel}')">Ouvrir ${nomMois} ›</button></div>`;
+        repEl.innerHTML = carteAn + carteMois;
+    },
+
+    _blChoisirMois(ym) {
+        this._blRapportMois = ym;
+        this.refreshBilanAnnuel();
+    },
+
+    _blOuvrirModal(id) {
+        document.getElementById('budget-modal-overlay')?.classList.add('open');
+        document.getElementById(id)?.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    },
+    closeBilanModal(id) {
+        document.getElementById(id)?.classList.remove('open');
+        if (!document.querySelector('.budget-modal-box.open')) {
+            document.getElementById('budget-modal-overlay')?.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+    },
+
+    /* ── Bilan annuel (fenêtre) ──────────────────────────── */
+    openBilanAnnuel(annee) {
+        const annees = this._blAnneesDispo();
+        if (!annees.length) { this.notify('Pas encore de données pour un bilan', 'warning'); return; }
+        this._blAnnee = annees.includes(+annee) ? +annee : annees[annees.length - 1];
+        this._renderBilanAnnuel();
+        this._blOuvrirModal('modal-bilan-annuel');
+    },
+    bilanAnneeNav(delta) {
+        const annees = this._blAnneesDispo();
+        const i = annees.indexOf(this._blAnnee) + delta;
+        if (i < 0 || i >= annees.length) return;
+        this._blAnnee = annees[i];
+        this._renderBilanAnnuel();
+    },
+    _renderBilanAnnuel() {
+        const body = document.getElementById('bl-annuel-body');
+        if (!body) return;
+        const annees = this._blAnneesDispo();
+        const s = this._blStatsAnnee(this._blAnnee);
+        if (!s) { body.innerHTML = ''; return; }
+        const i = annees.indexOf(s.annee);
+        const prevY = annees[i - 1], nextY = annees[i + 1];
+        const curY = +this._jourLocal().slice(0, 4);
+        const periode = s.first === 0 && s.last === 11 ? '' :
+            ` <span style="opacity:.7">(${this._blMoisAbr[s.first]} → ${this._blMoisAbr[s.last]})</span>`;
+        const intro = s.annee === curY ? 'Cette année' : 'En ' + s.annee;
+
+        const tiles = [`<div class="bl-tile"><div class="bl-lbl">Revenus</div><b>${this._blEur(s.totRev)}</b></div>`,
+                       `<div class="bl-tile"><div class="bl-lbl">Dépenses</div><b>${this._blEur(s.totDep)}</b></div>`];
+        if (s.patFin != null) tiles.push(`<div class="bl-tile"><div class="bl-lbl">Patrimoine</div><b>${this._blEur(s.patFin)}${s.patDelta != null ? ` <small class="bl-tile-delta" style="color:${s.patDelta >= 0 ? '#b9f6ca' : '#ffcdd2'}">${this._blSigne(s.patDelta)}</small>` : ''}</b></div>`);
+        else if (s.totVir > 0) tiles.push(`<div class="bl-tile"><div class="bl-lbl">Viré en épargne</div><b>${this._blEur(s.totVir)}</b></div>`);
+
+        const hero = `<div class="bl-hero">
+            <div class="bl-hero-top"><div class="bl-lbl">Bilan annuel · ${s.annee}${periode}</div>
+              <div class="bl-pills bl-noprint">
+                <button class="bl-pill" onclick="app.bilanAnneeNav(-1)" ${prevY ? '' : 'disabled'} title="Année précédente">‹${prevY ? ' ' + prevY : ''}</button>
+                ${nextY ? `<button class="bl-pill" onclick="app.bilanAnneeNav(1)" title="Année suivante">${nextY} ›</button>` : ''}
+                <button class="bl-pill" onclick="app.exportBilanPDF()" title="Imprimer ou enregistrer en PDF">⬇ PDF</button>
+                <button class="bl-pill bl-x" onclick="app.closeBilanModal('modal-bilan-annuel')" title="Fermer">✕</button>
+              </div></div>
+            <div class="bl-sub" style="margin-top:.9rem">${s.garde >= 0 ? intro + ', tu as mis de côté' : intro + ', tes dépenses ont dépassé tes revenus de'}</div>
+            <div class="bl-big">${this._blEur(Math.abs(s.garde))}</div>
+            <div class="bl-sub" style="margin-top:.25rem">${s.taux != null ? `<b style="color:#fff">${Math.round(s.taux)} %</b> de tes revenus · repère conseillé : 20 %` : 'Renseigne tes revenus pour voir ton taux d\'épargne'}${s.estime ? ' · certains mois sont estimés avec ton salaire' : ''}</div>
+            <div class="bl-row bl-tiles" style="margin-top:1.1rem">${tiles.join('')}</div></div>`;
+
+        // Épargne mois par mois
+        const cash = m => s.rev[m] - s.dep[m];
+        const maxAbs = Math.max(1, ...s.months.map(m => Math.abs(cash(m))));
+        const cols = Array.from({ length: 12 }, (_, m) => {
+            if (!s.months.includes(m)) return `<div class="bl-col"><em></em><i class="bl-col-vide"></i><span>${this._blMoisCourt[m]}</span></div>`;
+            const v = cash(m);
+            const cls = [m === s.best && s.complets.length ? 'best' : '', v < 0 ? 'neg' : '', m === s.enCours ? 'part' : ''].filter(Boolean).join(' ');
+            const h = Math.max(6, Math.abs(v) / maxAbs * 110);
+            const label = (m === s.best && s.complets.length) || v < 0 ? this._blSigne(v) : '';
+            return `<div class="bl-col ${cls}" title="${this._blMois[m]} : ${this._blSigne(v)} (revenus ${this._blEur(s.rev[m])} − dépenses ${this._blEur(s.dep[m])})"><em>${label}</em><i style="height:${h}px"></i><span>${this._blMoisCourt[m]}</span></div>`;
+        }).join('');
+        const legende = [s.complets.length ? '● vert = ton meilleur mois' : '', s.months.some(m => cash(m) < 0) ? '● rouge = dépenses > revenus' : '',
+                         s.enCours >= 0 ? this._blMois[s.enCours] + ' est en cours' : ''].filter(Boolean).join(' · ');
+        const carteCols = `<div class="bl-card"><div class="bl-card-head"><h3>Ton épargne mois par mois</h3><span class="bl-sub">revenus − dépenses</span></div>
+            <div class="bl-cols">${cols}</div><div class="bl-sub" style="margin-top:.5rem">${legende}</div></div>`;
+
+        // Faits marquants
+        const facts = [];
+        if (s.complets.length) {
+            const v = cash(s.best);
+            facts.push(['🏆', 'Meilleur mois', `${this._blMois[s.best].charAt(0).toUpperCase() + this._blMois[s.best].slice(1)} · ${this._blSigne(v)}`,
+                        s.rev[s.best] > 0 ? Math.round(v / s.rev[s.best] * 100) + ' % épargnés' : '']);
+        }
+        if (s.cats.length) {
+            const [c, v] = s.cats[0];
+            facts.push([this._getCatEmoji(c), 'Plus gros poste', `${app._esc(this._blNomCat(c))} · ${this._blEur(v)}`,
+                        s.totDep > 0 ? Math.round(v / s.totDep * 100) + ' % de tes dépenses' : '']);
+        }
+        if (s.pea && s.peaPerf != null && !isNaN(s.peaPerf)) {
+            facts.push(['📈', 'PEA', `${s.peaPerf >= 0 ? '+' : '−'}${Math.abs(Math.round(s.peaPerf))} % · ${this._blEur(s.pea.valeur)}`,
+                        s.pea.investi > 0 ? `pour ${this._blEur(s.pea.investi)} versés` : '']);
+        } else if (s.totVir > 0) {
+            facts.push(['💰', 'Viré en épargne', this._blEur(s.totVir), 'sur l\'année']);
+        }
+        const factsHtml = facts.length ? `<div class="bl-row bl-st bl-facts">${facts.map(([e, l, b, sub]) =>
+            `<div class="bl-fact"><div class="bl-fact-e">${e}</div><div><div class="bl-lbl">${l}</div><b>${b}</b><div class="bl-sub">${sub}</div></div></div>`).join('')}</div>` : '';
+
+        // Catégories
+        const maxCat = s.cats.length ? s.cats[0][1] : 1;
+        const catsHtml = s.cats.length ? s.cats.slice(0, 5).map(([c, v]) =>
+            `<div class="bl-cat"><b>${this._blCatLabel(c)}</b><div class="bl-bar"><i style="width:${v / maxCat * 100}%"></i></div><div class="bl-v">${this._blEur(v)} · ${s.totDep > 0 ? Math.round(v / s.totDep * 100) : 0} %</div></div>`).join('')
+            : '<div class="bl-sub">Aucune dépense sur cette période.</div>';
+        const lignes = s.months.map(m => `<tr><td>${this._blMois[m].charAt(0).toUpperCase() + this._blMois[m].slice(1)}${m === s.enCours ? ' <span class="bl-sub">(en cours)</span>' : ''}</td>
+            <td>${this._blEur(s.rev[m])}</td><td>${this._blEur(s.dep[m])}</td><td class="${cash(m) >= 0 ? 'bl-pos' : 'bl-neg'}">${this._blSigne(cash(m))}</td></tr>`).join('');
+        const carteCats = `<div class="bl-card"><h3>Où est parti ton argent</h3>${catsHtml}
+            <details class="bl-details"><summary>Voir le détail mois par mois ›</summary>
+            <table class="bl-table"><thead><tr><th>Mois</th><th>Revenus</th><th>Dépenses</th><th>Gardé</th></tr></thead><tbody>${lignes}</tbody></table></details></div>`;
+
+        body.innerHTML = `<div id="bl-annuel-print">${hero}${carteCols}${factsHtml}${carteCats}</div>`;
+    },
+
+    exportBilanPDF() {
+        this._blImprimer(document.getElementById('bl-annuel-print'), 'Bilan ' + (this._blAnnee || ''));
+    },
+
+    /* ── Rapport mensuel (fenêtre) ───────────────────────── */
+    openRapportMensuel(ym) {
+        const dispo = this._blMoisDispo();
+        if (!dispo.length) { this.notify('Pas encore de données pour un rapport', 'warning'); return; }
+        this._blRapportMois = dispo.includes(ym) ? ym : this._blRapportDefaut();
+        this._renderRapportMensuel();
+        this._blOuvrirModal('modal-bilan-rapport');
+    },
+    rapportNav(delta) {
+        const dispo = this._blMoisDispo();
+        const i = dispo.indexOf(this._blRapportMois) + delta;
+        if (i < 0 || i >= dispo.length) return;
+        this._blRapportMois = dispo[i];
+        this.refreshBilanAnnuel(); // re-rend la fenêtre ouverte et la carte de l'onglet
+    },
+    _renderRapportMensuel() {
+        const body = document.getElementById('bl-rapport-body');
+        if (!body || !this._blRapportMois) return;
+        const dispo = this._blMoisDispo();
+        const i = dispo.indexOf(this._blRapportMois);
+        const s = this._blStatsMois(this._blRapportMois);
+        const titre = this._blMois[s.m].charAt(0).toUpperCase() + this._blMois[s.m].slice(1) + ' ' + s.y;
+
+        let verdict = '';
+        if (s.enCours) verdict = '⏳ Mois en cours';
+        else if (s.taux != null) verdict = s.taux >= 30 ? '✓ Très bon mois' : s.taux >= 15 ? '👍 Bon mois' : s.taux >= 0 ? '≈ Mois à l\'équilibre' : '⚠ Mois difficile';
+
+        const tiles = [];
+        if (s.rev > 0) tiles.push(`<div class="bl-tile"><div class="bl-lbl">Revenus${s.estime ? ' (estimés)' : ''}</div><b>${this._blEur(s.rev)}</b></div>`);
+        tiles.push(`<div class="bl-tile"><div class="bl-lbl">Dépenses</div><b>${this._blEur(s.dep)}</b></div>`);
+        if (s.budgetPct != null) tiles.push(`<div class="bl-tile"><div class="bl-lbl">Budget utilisé</div><b>${Math.round(s.budgetPct)} %</b></div>`);
+
+        const hero = `<div class="bl-hero">
+            <div class="bl-hero-nav">
+              <button class="bl-pill bl-noprint" onclick="app.rapportNav(-1)" ${i > 0 ? '' : 'disabled'} title="Mois précédent">‹</button>
+              <div style="text-align:center"><div class="bl-lbl">Rapport mensuel</div><div class="bl-hero-title">${titre}</div></div>
+              <div class="bl-pills bl-noprint">
+                <button class="bl-pill" onclick="app.rapportNav(1)" ${i < dispo.length - 1 ? '' : 'disabled'} title="Mois suivant">›</button>
+                <button class="bl-pill bl-x" onclick="app.closeBilanModal('modal-bilan-rapport')" title="Fermer">✕</button>
+              </div></div>
+            ${verdict ? `<div style="text-align:center;margin-top:1rem"><span class="bl-pill bl-pill-static">${verdict}</span></div>` : ''}
+            ${s.rev > 0 ? `<div class="bl-sub" style="text-align:center;margin-top:.65rem">${s.garde >= 0 ? 'Tu as gardé' : 'Tu as dépensé plus que tes revenus de'}</div>
+              <div class="bl-big" style="text-align:center">${this._blEur(Math.abs(s.garde))}</div>
+              <div class="bl-sub" style="text-align:center">${s.garde >= 0 ? Math.round(s.taux) + ' % de tes revenus' : 'à rattraper le mois prochain'}</div>`
+            : `<div class="bl-sub" style="text-align:center;margin-top:.65rem">Tu as dépensé</div><div class="bl-big" style="text-align:center">${this._blEur(s.dep)}</div>
+              <div class="bl-sub" style="text-align:center">ajoute tes revenus pour voir ce que tu as gardé</div>`}
+            <div class="bl-row" style="margin-top:1.1rem">${tiles.join('')}</div></div>`;
+
+        // Ce qui a compté
+        let compte = '';
+        if (s.cats.length) {
+            const rows = s.cats.slice(0, 3).map(([c, v], k) => {
+                const avg = s.moy[c];
+                let delta = '';
+                if (s.nMoy > 0 && avg != null && Math.abs(v - avg) >= 5) {
+                    const d = v - avg;
+                    delta = ` <span class="${d > 0 ? 'bl-up' : 'bl-down'}">${d > 0 ? '↑' : '↓'} ${this._blSigne(d)}${k === 0 ? ' vs ta moyenne' : ''}</span>`;
+                } else if (s.nMoy > 0 && avg == null) {
+                    delta = ' <span class="bl-sub">nouveau</span>';
+                }
+                return `<div class="bl-mini"><span>${this._blCatLabel(c)}</span><span><b>${this._blEur(v)}</b>${delta}</span></div>`;
+            }).join('');
+            let phrase = '';
+            if (s.prev) {
+                const prevNom = this._blMois[+s.prevYm.slice(5, 7) - 1];
+                const diff = s.dep - s.prev.dep;
+                const toutes = new Set([...Object.keys(s.parCat), ...Object.keys(s.prev.parCat)]);
+                const deltas = [...toutes].map(c => [c, (s.parCat[c] || 0) - (s.prev.parCat[c] || 0)]);
+                if (diff < -10) {
+                    const [c, d] = deltas.sort((a, b) => a[1] - b[1])[0];
+                    phrase = !s.parCat[c]
+                        ? `Pas de ${app._esc(this._blNomCat(c).toLowerCase())} ce mois-ci : c'est ce qui fait la différence (${this._blSigne(diff)} de dépenses vs ${prevNom}).`
+                        : `${app._esc(this._blNomCat(c))} en baisse de ${this._blEur(-d)} : c'est ce qui fait la différence (${this._blSigne(diff)} de dépenses vs ${prevNom}).`;
+                } else if (diff > 10) {
+                    const [c, d] = deltas.sort((a, b) => b[1] - a[1])[0];
+                    phrase = `${app._esc(this._blNomCat(c))} : ${this._blSigne(d)} vs ${prevNom}, c'est ce qui pèse le plus (${this._blSigne(diff)} de dépenses au total).`;
+                } else {
+                    phrase = `Dépenses quasi identiques à ${prevNom} (${this._blSigne(diff)}).`;
+                }
+            }
+            compte = `<div class="bl-card"><h3>Ce qui a compté</h3>${rows}${phrase ? `<div class="bl-sub" style="margin-top:.65rem">${phrase}</div>` : ''}</div>`;
+        } else {
+            compte = `<div class="bl-card"><h3>Ce qui a compté</h3><div class="bl-sub">Aucune dépense enregistrée ce mois-ci.</div></div>`;
         }
 
-        const epargneNette = totalRevenuAnnuel > 0 ? Math.max(0, totalRevenuAnnuel - totalDepEff) : 0;
-        const txEpargne = totalRevenuAnnuel > 0 ? ((epargneNette / totalRevenuAnnuel) * 100) : null;
-
-        const anneePrec = annee - 1;
-        const depsPrec = this.data.depenses.filter(d => new Date(d.date).getFullYear() === anneePrec);
-        const parMoisDepPrec = Array(12).fill(0);
-        let totalDepEffPrec = 0, totalRevPrec = 0;
-        depsPrec.forEach(d => {
-            if (!exclus.some(e => d.categorie.toUpperCase().includes(e.toUpperCase())))
-                parMoisDepPrec[new Date(d.date).getMonth()] += d.montant;
-        });
-        totalDepEffPrec = parMoisDepPrec.reduce((s,v) => s+v, 0);
-        for (let m = 0; m < 12; m++) {
-            const { total: rev } = this.getRevenusMois(anneePrec, m);
-            totalRevPrec += rev;
+        const facts = [];
+        if (s.vir > 0) facts.push(['💰', 'Épargne', this._blEur(s.vir) + ' virés', 'vers ton épargne']);
+        if (s.pat) facts.push(['🏦', 'Patrimoine', this._blEur(s.pat.total), s.patPrev ? this._blSigne(s.pat.total - s.patPrev.total) + ' sur le mois' : 'premier relevé']);
+        if (s.notes.length) {
+            const n = s.notes[0];
+            const txt = n.texte.length > 70 ? n.texte.slice(0, 70) + '…' : n.texte;
+            facts.push(['📝', 'Ta note', app._esc(txt), s.notes.length > 1 ? `+ ${s.notes.length - 1} autre(s)` : app._esc(n.tag || '')]);
         }
-        const epargnePrec = totalRevPrec > 0 ? Math.max(0, totalRevPrec - totalDepEffPrec) : 0;
-        const txEpargnePrec = totalRevPrec > 0 ? ((epargnePrec / totalRevPrec) * 100) : null;
-        const hasPrec = depsPrec.length > 0 || totalRevPrec > 0;
+        const factsHtml = facts.length ? `<div class="bl-row bl-st bl-facts">${facts.map(([e, l, b, sub]) =>
+            `<div class="bl-fact"><div class="bl-fact-e">${e}</div><div><div class="bl-lbl">${l}</div><b>${b}</b><div class="bl-sub">${sub}</div></div></div>`).join('')}</div>` : '';
 
-        const nonZero = parMoisDep.filter(v => v > 0);
-        const maxMoisVal = Math.max(...parMoisDep, 1);
-        const moisMaxIdx = parMoisDep.indexOf(Math.max(...parMoisDep));
-        const moisSageIdx = nonZero.length > 0 ? parMoisDep.indexOf(Math.min(...nonZero)) : -1;
-
-        const parCat = {};
-        deps.forEach(d => {
-            if (!exclus.some(e => d.categorie.toUpperCase().includes(e.toUpperCase())))
-                parCat[d.categorie] = (parCat[d.categorie] || 0) + d.montant;
-        });
-        const catsSorted = Object.entries(parCat).sort((a,b) => b[1]-a[1]);
-        const catMax = catsSorted[0];
-
-        const patAnnee = (this.data.patrimoine||[]).filter(p => p.mois && p.mois.startsWith(annee)).sort((a,b) => (a.date||a.mois).localeCompare(b.date||b.mois));
-        const patDebut = patAnnee[0]?.total || 0;
-        const patFin = patAnnee[patAnnee.length-1]?.total || 0;
-        const patDelta = patFin - patDebut;
-
-        const txColor = txEpargne === null ? 'var(--text-primary)' : txEpargne >= 20 ? 'var(--success)' : txEpargne >= 10 ? 'var(--warning)' : 'var(--danger)';
-
-        container.innerHTML = `
-        <div id="bilan-annuel-print">
-        <!-- Header -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem">
-            <div>
-                <div style="font-size:.62rem;font-family:DM Mono,monospace;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.1em">Bilan complet</div>
-                <div style="font-family:'Outfit',sans-serif;font-size:1.4rem;font-weight:800;color:var(--text-primary)">${annee}</div>
-            </div>
-            <button onclick="app.exportBilanPDF(${annee})" class="btn btn-small" style="display:flex;align-items:center;gap:.4rem">🖨 Exporter PDF</button>
-        </div>
-
-        <!-- 4 stats -->
-        <div class="grid grid-4 grid-stats" style="margin-bottom:1.25rem">
-            ${[
-                {icon:'↑', label:'Revenus totaux',     val: totalRevenuAnnuel > 0 ? this.formatCurrency(totalRevenuAnnuel) : '—', color:'var(--success)',
-                 delta: hasPrec && totalRevPrec > 0 && totalRevenuAnnuel > 0 ? ((totalRevenuAnnuel-totalRevPrec)/totalRevPrec*100) : null, inv: false},
-                {icon:'—', label:'Dépenses effectives', val: this.formatCurrency(totalDepEff), color:'var(--accent-primary)',
-                 delta: hasPrec && totalDepEffPrec > 0 ? ((totalDepEff-totalDepEffPrec)/totalDepEffPrec*100) : null, inv: true},
-                {icon:'€', label:'Épargne nette',       val: totalRevenuAnnuel > 0 ? this.formatCurrency(epargneNette) : '—', color: epargneNette > 0 ? 'var(--success)' : 'var(--danger)',
-                 delta: hasPrec && epargnePrec > 0 && totalRevenuAnnuel > 0 ? ((epargneNette-epargnePrec)/epargnePrec*100) : null, inv: false},
-                {icon:'◎', label:"Taux d'épargne",     val: txEpargne !== null ? txEpargne.toFixed(0)+'%' : '—', color: txEpargne === null ? 'var(--text-primary)' : txEpargne >= 20 ? 'var(--success)' : txEpargne >= 10 ? 'var(--warning)' : 'var(--danger)',
-                 delta: hasPrec && txEpargnePrec !== null && txEpargne !== null ? (txEpargne - txEpargnePrec) : null, inv: false, isTx: true}
-            ].map(k => {
-                const dStr = k.delta !== null ? (() => {
-                    const v = k.isTx ? k.delta.toFixed(1) + 'pt' : Math.abs(k.delta).toFixed(1) + '%';
-                    const good = k.inv ? k.delta <= 0 : k.delta >= 0;
-                    return `<div class="stat-delta-pill ${good ? 'positive' : 'negative'}" style="margin-top:.3rem">${good ? '↑' : '↓'} ${v} vs N-1</div>`;
-                })() : '';
-                return `<div class="stat-card stat-card-main" style="text-align:center">
-                    <div class="stat-label">${k.label}</div>
-                    <div class="stat-value" style="color:${k.color};font-size:1.5rem">${k.val}</div>
-                    ${dStr}
-                </div>`;
-            }).join('')}
-        </div>
-
-        <!-- Comparaison N vs N-1 -->
-        ${hasPrec ? (() => {
-            const rows = [
-                {label:'Revenus',       n: totalRevenuAnnuel, p: totalRevPrec,     fmt: v => this.formatCurrency(v), invertDelta: false},
-                {label:'Dépenses',      n: totalDepEff,       p: totalDepEffPrec,  fmt: v => this.formatCurrency(v), invertDelta: true},
-                {label:'Épargne nette', n: epargneNette,      p: epargnePrec,      fmt: v => this.formatCurrency(v), invertDelta: false},
-                {label:"Taux d'épargne",n: txEpargne,         p: txEpargnePrec,    fmt: v => v !== null ? v.toFixed(1)+'%' : '—', invertDelta: false}
-            ];
-            const cards = rows.map(({label, n, p, fmt, invertDelta}) => {
-                const delta    = (n !== null && p !== null && p > 0) ? n - p : null;
-                const pct      = (delta !== null && p > 0) ? (delta / p * 100) : null;
-                const isGood   = delta === null || delta === 0 ? null : invertDelta ? delta < 0 : delta > 0;
-                const color    = isGood === null ? 'var(--text-tertiary)' : isGood ? 'var(--success)' : 'var(--danger)';
-                const arrow    = delta === null || delta === 0 ? '→' : delta > 0 ? '↑' : '↓';
-                const pctStr   = pct !== null ? (pct > 0 ? '+' : '') + pct.toFixed(1) + '%' : '';
-                return '<div style="background:var(--bg-card);border-radius:10px;padding:.65rem .85rem;border:1px solid var(--border-color)">'
-                    + '<div style="font-size:.62rem;font-family:DM Mono,monospace;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:.3rem">' + label + '</div>'
-                    + '<div style="display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap">'
-                    +   '<span style="font-family:Outfit,sans-serif;font-weight:700;font-size:1rem;color:var(--text-primary)">' + fmt(n) + '</span>'
-                    +   (pct !== null ? '<span style="font-family:DM Mono,monospace;font-size:.68rem;font-weight:700;color:' + color + '">' + arrow + ' ' + pctStr + '</span>' : '')
-                    + '</div>'
-                    + '<div style="font-size:.67rem;color:var(--text-tertiary);margin-top:.15rem">' + (p > 0 ? anneePrec + ' : ' + fmt(p) : 'Pas de données ' + anneePrec) + '</div>'
-                    + '</div>';
-            });
-            return '<div style="margin-bottom:1.25rem;background:var(--bg-secondary);border-radius:14px;padding:1rem 1.25rem;border:1px solid var(--border-color)">'
-                + '<div class="stat-label" style="margin-bottom:.75rem"> Comparaison ' + annee + ' vs ' + anneePrec + '</div>'
-                + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.6rem">' + cards.join('') + '</div>'
-                + '</div>';
-        })() : ''}
-
-        <!-- Mini graphe + stats -->
-        <div class="grid grid-2" style="margin-bottom:1.25rem">
-            <div style="background:var(--bg-secondary);border-radius:14px;padding:1rem;border:1px solid var(--border-color)">
-                <div class="stat-label" style="margin-bottom:.75rem">Dépenses effectives mois par mois</div>
-                <div style="display:flex;align-items:flex-end;gap:3px;height:64px">
-                    ${parMoisDep.map((v,i) => {
-                        const h = Math.max(2,(v/maxMoisVal*100).toFixed(0));
-                        return '<div title="'+mL[i]+': '+this.formatCurrency(v)+'" style="flex:1;height:'+h+'%;border-radius:3px 3px 0 0;background:'+(i===moisMaxIdx?'var(--danger)':'linear-gradient(180deg,var(--accent-gradient-start),var(--accent-gradient-end))')+';opacity:.85;min-height:2px"></div>';
-                    }).join('')}
-                </div>
-                <div style="display:flex;margin-top:.3rem">
-                    ${mL.map(l => '<span style="flex:1;text-align:center;font-family:DM Mono,monospace;font-size:.42rem;color:var(--text-tertiary)">'+l[0]+'</span>').join('')}
-                </div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:.45rem">
-                ${patAnnee.length >= 2 ? `
-                <div style="background:var(--bg-secondary);border-radius:12px;padding:.7rem 1rem;border:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
-                    <span class="stat-label" style="margin:0"> Croissance patrimoine</span>
-                    <strong style="color:${patDelta>=0?'var(--success)':'var(--danger)'}">${patDelta>=0?'+':''}${this.formatCurrency(patDelta)}</strong>
-                </div>` : ''}
-                <div style="background:var(--bg-secondary);border-radius:12px;padding:.7rem 1rem;border:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
-                    <span class="stat-label" style="margin:0">🏆 Mois le + sage</span>
-                    <strong>${moisSageIdx >= 0 ? mL[moisSageIdx]+' ('+this.formatCurrency(parMoisDep[moisSageIdx])+')' : '—'}</strong>
-                </div>
-                <div style="background:var(--bg-secondary);border-radius:12px;padding:.7rem 1rem;border:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
-                    <span class="stat-label" style="margin:0">😬 Mois le + chargé</span>
-                    <strong style="color:var(--danger)">${mL[moisMaxIdx]} (${this.formatCurrency(parMoisDep[moisMaxIdx])})</strong>
-                </div>
-                <div style="background:var(--bg-secondary);border-radius:12px;padding:.7rem 1rem;border:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
-                    <span class="stat-label" style="margin:0">💸 Catégorie principale</span>
-                    <strong>${catMax ? catMax[0]+' ('+this.formatCurrency(catMax[1])+')' : '—'}</strong>
-                </div>
-                <div style="background:var(--bg-secondary);border-radius:12px;padding:.7rem 1rem;border:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center">
-                    <span class="stat-label" style="margin:0"> Moy. dépenses/mois</span>
-                    <strong>${this.formatCurrency(totalDepEff / Math.max(1, nonZero.length))}</strong>
-                </div>
-            </div>
-        </div>
-
-        <!-- Top catégories -->
-        ${catsSorted.length > 0 ? `
-        <div style="margin-bottom:1.25rem">
-            <div class="stat-label" style="margin-bottom:.65rem">Répartition par catégorie (hors épargne)</div>
-            <div style="display:flex;flex-direction:column;gap:.35rem">
-            ${catsSorted.slice(0,6).map(([cat,val]) => {
-                const pct = (val/Math.max(totalDepEff,1)*100).toFixed(0);
-                return '<div style="display:flex;align-items:center;gap:.75rem">'
-                    +'<span style="font-size:.78rem;min-width:100px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+cat+'</span>'
-                    +'<div style="flex:1;height:6px;background:var(--bg-secondary);border-radius:100px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:linear-gradient(90deg,var(--accent-gradient-start),var(--accent-gradient-end));border-radius:100px"></div></div>'
-                    +'<span style="font-family:DM Mono,monospace;font-size:.67rem;color:var(--text-tertiary);min-width:100px;text-align:right">'+this.formatCurrency(val)+' ('+pct+'%)</span>'
-                    +'</div>';
-            }).join('')}
-            </div>
-        </div>` : ''}
-
-        <!-- Tableau mensuel -->
-        <div style="margin-bottom:1.25rem;overflow-x:auto">
-            <div class="stat-label" style="margin-bottom:.65rem">Détail mensuel</div>
-            <table class="table" style="font-size:.75rem">
-                <thead><tr>
-                    <th>Mois</th>
-                    <th style="text-align:right">Revenus</th>
-                    <th style="text-align:right">Dépenses</th>
-                    <th style="text-align:right">Cashflow</th>
-                    <th style="text-align:right">Taux ép.</th>
-                </tr></thead>
-                <tbody>
-                ${mL.map((ml,i) => {
-                    const rev = parMoisRev[i], dep = parMoisDep[i];
-                    if (rev === 0 && dep === 0) return '';
-                    const cf = rev > 0 ? rev - dep : null;
-                    const tx = rev > 0 ? ((rev-dep)/rev*100).toFixed(0) : null;
-                    const txC = tx === null ? '' : tx >= 20 ? 'color:var(--success)' : tx >= 10 ? 'color:var(--warning)' : 'color:var(--danger)';
-                    return '<tr>'
-                        +'<td style="font-family:DM Mono,monospace;font-size:.7rem">'+ml+'</td>'
-                        +'<td style="text-align:right;color:var(--success);font-weight:600">'+(rev>0?this.formatCurrency(rev):'—')+'</td>'
-                        +'<td style="text-align:right">'+this.formatCurrency(dep)+'</td>'
-                        +'<td style="text-align:right;font-weight:700;'+(cf===null?'':'color:'+(cf>=0?'var(--success)':'var(--danger)'))+'">'+( cf!==null?(cf>=0?'+':'')+this.formatCurrency(cf):'—')+'</td>'
-                        +'<td style="text-align:right;font-weight:700;'+txC+'">'+(tx!==null?tx+'%':'—')+'</td>'
-                        +'</tr>';
-                }).join('')}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Synthèse narrative -->
-        <div style="padding:1rem;background:linear-gradient(135deg,rgba(63,81,181,.06),rgba(124,58,237,.04));border-radius:14px;border:1px solid rgba(63,81,181,.12);color:var(--text-secondary);line-height:1.7;font-size:.85rem">
-            💬 <strong>Synthèse ${annee} :</strong>
-            ${totalRevenuAnnuel > 0 ? 'Revenus : <strong>'+this.formatCurrency(totalRevenuAnnuel)+'</strong>. ' : ''}
-            Dépenses effectives : <strong>${this.formatCurrency(totalDepEff)}</strong>${totalVirEpargne > 0 ? ' + <strong>'+this.formatCurrency(totalVirEpargne)+'</strong> virés vers l\'épargne' : ''}.
-            ${epargneNette > 0 ? 'Épargne nette : <strong style="color:var(--success)">'+this.formatCurrency(epargneNette)+'</strong>'+(txEpargne!==null?' (taux : <strong>'+txEpargne.toFixed(0)+'%</strong>)':'')+'. ' : ''}
-            ${catMax ? 'Poste principal : <strong>'+catMax[0]+'</strong> ('+this.formatCurrency(catMax[1])+'). ' : ''}
-            ${patAnnee.length >= 2 ? 'Patrimoine : <strong style="color:'+(patDelta>=0?'var(--success)':'var(--danger)')+'">'+(patDelta>=0?'+':'')+this.formatCurrency(patDelta)+'</strong> sur l\'année.' : ''}
-        </div>
-        </div>`;
+        body.innerHTML = `<div id="bl-rapport-print">${hero}${compte}${factsHtml}</div>
+            <div class="bl-noprint" style="display:flex;justify-content:center;margin-top:.25rem"><button class="bl-btn" onclick="app.imprimerRapport()">🖨 Imprimer / PDF</button></div>`;
     },
 
-    exportBilanPDF(annee) {
-        const el = document.getElementById('bilan-annuel-print');
-        if (!el) { this.notify('Génère d\'abord le bilan', 'warning'); return; }
-        const y = annee || new Date().getFullYear();
-        const w = window.open('', '_blank');
-        w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Bilan ${y}</title>
-            <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=DM+Mono&family=Crimson+Pro:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-            <style>
-                *{box-sizing:border-box}
-                body{margin:2rem;font-family:'Inter',sans-serif;background:#fff;color:#1e3a5f;font-size:13px}
-                h1{font-family:'Outfit',sans-serif;font-size:1.8rem;font-weight:800;color:#1e3a5f;margin:0 0 .25rem}
-                .label{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.08em;color:#7891ab;margin-bottom:.3rem;display:block}
-                .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:1rem}
-                .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;margin-bottom:1rem}
-                .card{background:#f5f9fc;border-radius:10px;padding:.85rem;text-align:center}
-                .big{font-family:'Outfit',sans-serif;font-size:1.4rem;font-weight:800}
-                .row{display:flex;justify-content:space-between;align-items:center;padding:.55rem .75rem;background:#f5f9fc;border-radius:8px;margin-bottom:.35rem;font-size:.8rem}
-                .bar-wrap{height:5px;background:#e8edf2;border-radius:100px;overflow:hidden;flex:1;margin:0 .5rem}
-                .bar-fill{height:100%;background:linear-gradient(90deg,#3f51b5,#7c4dff);border-radius:100px}
-                table{width:100%;border-collapse:collapse;font-size:.75rem}
-                th{font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;color:#7891ab;padding:.5rem;text-align:left;border-bottom:1px solid #e8edf2}
-                td{padding:.45rem .5rem;border-bottom:1px solid #f0f4f8}
-                .footer{text-align:center;font-family:'DM Mono',monospace;font-size:.55rem;color:#a0aec0;margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e8edf2}
-                button{display:none!important}
-                @media print{body{margin:.5cm}@page{margin:.5cm}}
-            </style>
-            </head><body>
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.25rem;padding-bottom:.75rem;border-bottom:2px solid #e8edf2">
-                <div>
-                    <span class="label">Bilan financier personnel</span>
-                    <h1>${y}</h1>
-                </div>
-                <div style="text-align:right;font-family:'DM Mono',monospace;font-size:.65rem;color:#7891ab">Généré le ${new Date().toLocaleDateString('fr-FR')}</div>
-            </div>
-            ${el.innerHTML}
-            <div class="footer">Document généré automatiquement — Suivi Financier Personnel · ${y}</div>
-            <script>window.onload=()=>window.print()<\/script></body></html>`);
-        w.document.close();
-    },
-
-    initRapportSelect() {
-        const moisDispo = [...new Set(this.data.depenses.map(d => d.date.slice(0,7)))].sort().reverse();
-        const sel = document.getElementById('rapport-mois');
-        if (!sel) return;
-        const now = app._jourLocal().slice(0, 7);
-        sel.innerHTML = moisDispo.map(m => `<option value="${m}" ${m === now ? 'selected' : ''}>${m}</option>`).join('');
-    },
-    genererRapport() {
-        const mois = document.getElementById('rapport-mois')?.value;
-        const container = document.getElementById('rapport-container');
-        if (!container || !mois) return;
-        const [yearS, monthS] = mois.split('-');
-        const year = parseInt(yearS), month = parseInt(monthS) - 1;
-        const exclus = this.data.categoriesEpargne || ['ÉPARGNE'];
-
-        const deps = this.data.depenses.filter(d => d.date.startsWith(mois));
-
-        const depsEff = deps.filter(d => !exclus.some(e => d.categorie.toUpperCase().includes(e.toUpperCase())));
-        const depsEp  = deps.filter(d => exclus.some(e => d.categorie.toUpperCase().includes(e.toUpperCase())));
-        const total = depsEff.reduce((s,d) => s+d.montant, 0);
-        const totalVirEp = depsEp.reduce((s,d) => s+d.montant, 0);
-        const totalBrut = deps.reduce((s,d) => s+d.montant, 0);
-
-        const { total: revenus, source } = this.getRevenusMois(year, month);
-        const cashflow = revenus > 0 ? revenus - total : null;
-        const tauxEp = revenus > 0 ? ((revenus - total) / revenus * 100) : null;
-
-        const budgetTotal = Object.entries(this.data.budgets || {})
-            .filter(([cat,v]) => v > 0 && !exclus.some(e => cat.toUpperCase().includes(e.toUpperCase())))
-            .reduce((s,[,v]) => s+v, 0);
-        const resteBudget = budgetTotal > 0 ? budgetTotal - total : null;
-
-        const parCat = {};
-        depsEff.forEach(d => parCat[d.categorie] = (parCat[d.categorie] || 0) + d.montant);
-        const catsSorted = Object.entries(parCat).sort((a,b) => b[1]-a[1]);
-        const maxCat = catsSorted[0]?.[1] || 1;
-        const moisLabel = new Date(mois + '-01').toLocaleDateString('fr-FR', {month:'long',year:'numeric'});
-        const obj = this.data.objectifs || [];
-        const peaList = this.data.suiviPEA || [];
-        const peaLast = peaList.filter(p => p.date.startsWith(mois)).pop() || peaList[peaList.length - 1];
-        document.getElementById('btn-imprimer').style.display = 'inline-flex';
-        container.innerHTML = `
-        <div id="rapport-print" style="background:white;border-radius:16px;padding:2rem;border:1px solid var(--border-color)">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:2px solid #e8edf2">
-                <div>
-                    <div style="font-family:DM Mono,monospace;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:#7891ab">Bilan financier</div>
-                    <div style="font-family:'Outfit',sans-serif;font-size:1.6rem;font-weight:800;color:#1e3a5f">${moisLabel.charAt(0).toUpperCase()+moisLabel.slice(1)}</div>
-                </div>
-                <div style="text-align:right">
-                    <div style="font-family:'Outfit',sans-serif;font-size:1.8rem;font-weight:800;background:linear-gradient(135deg,#3f51b5,#7c4dff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">${this.formatCurrency(total)}</div>
-                    <div style="font-family:DM Mono,monospace;font-size:0.7rem;color:var(--text-primary)">${resteBudget >= 0 ? '✅' : '⚠️'} ${resteBudget >= 0 ? '+' : ''}${this.formatCurrency(resteBudget)} vs budget</div>
-                </div>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(${revenus>0?4:3},1fr);gap:0.6rem;margin-bottom:1.5rem">
-                ${[
-                    revenus > 0 ? ['Revenus', this.formatCurrency(revenus), source==='salaire' ? '#7891ab' : '#00c853'] : null,
-                    ['Dépenses eff.', this.formatCurrency(total), '#1e3a5f'],
-                    cashflow !== null ? ['Cashflow', (cashflow>=0?'+':'')+this.formatCurrency(cashflow), cashflow>=0?'#00c853':'#f44336'] : null,
-                    tauxEp !== null ? ['Taux épargne', tauxEp.toFixed(0)+'%', tauxEp>=20?'#00c853':tauxEp>=10?'#f59e0b':'#f44336'] : null,
-                ].filter(Boolean).map(([l,v,clr]) => `<div style="background:#f5f9fc;border-radius:12px;padding:0.75rem;text-align:center">
-                    <div style="font-family:DM Mono,monospace;font-size:0.55rem;text-transform:uppercase;letter-spacing:0.08em;color:#7891ab">${l}</div>
-                    <div style="font-family:'Outfit',sans-serif;font-size:1rem;font-weight:700;color:${clr}">${v}</div>
-                </div>`).join('')}
-            </div>
-            ${resteBudget !== null ? `<div style="margin-bottom:1.25rem;font-family:DM Mono,monospace;font-size:0.7rem;color:var(--text-primary);text-align:right">${resteBudget>=0?'✅':'⚠️'} ${resteBudget>=0?'+':''}${this.formatCurrency(resteBudget)} vs budget alloué</div>` : ''}
-            ${totalVirEp > 0 ? `<div style="background:#f0fdf4;border-radius:10px;padding:.65rem 1rem;margin-bottom:1.25rem;border:1px solid #bbf7d0;font-size:.8rem;color:#166534">
-                💰 Virements épargne ce mois : <strong>${this.formatCurrency(totalVirEp)}</strong>
-            </div>` : ''}
-            ${catsSorted.length > 0 ? `<div style="margin-bottom:1.5rem">
-                <div style="font-family:DM Mono,monospace;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:#7891ab;margin-bottom:0.75rem">Répartition par catégorie</div>
-                ${catsSorted.map(([cat, val]) => `<div style="margin-bottom:0.5rem">
-                    <div style="display:flex;justify-content:space-between;margin-bottom:0.2rem">
-                        <span style="font-size:0.85rem;color:#2d3748">${cat}</span>
-                        <span style="font-family:DM Mono,monospace;font-size:0.72rem;color:#4a6785">${this.formatCurrency(val)} (${((val/total)*100).toFixed(0)}%)</span>
-                    </div>
-                    <div style="height:6px;background:#e8edf2;border-radius:100px;overflow:hidden">
-                        <div style="width:${((val/maxCat)*100).toFixed(0)}%;height:100%;background:linear-gradient(90deg,#3f51b5,#7c4dff);border-radius:100px"></div>
-                    </div>
-                </div>`).join('')}
-            </div>` : ''}
-            ${peaLast ? `<div style="background:#f5f9fc;border-radius:12px;padding:1rem;margin-bottom:1.5rem;border:1px solid #d4e2ed">
-                <div style="font-family:DM Mono,monospace;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:#7891ab;margin-bottom:0.5rem">PEA</div>
-                <div style="display:flex;justify-content:space-between;font-size:0.85rem">
-                    <span>Valeur : <strong>${this.formatCurrency(peaLast.valeur)}</strong></span>
-                    <span style="color:${parseFloat(peaLast.performance)>=0?'#00c853':'#f44336'}">Perf : ${peaLast.performance}%</span>
-                </div>
-            </div>` : ''}
-            ${obj.length > 0 ? `<div style="margin-bottom:1.5rem">
-                <div style="font-family:DM Mono,monospace;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:#7891ab;margin-bottom:0.75rem">Objectifs en cours</div>
-                ${obj.map(o => { const pct = Math.min(100,(o.actuel/o.cible)*100).toFixed(0); return `<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem">
-                    <span style="font-size:1.1rem">${app._esc(o.emoji)}</span>
-                    <div style="flex:1">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:0.2rem">
-                            <span style="font-size:0.85rem">${app._esc(o.nom)}</span>
-                            <span style="font-family:DM Mono,monospace;font-size:0.7rem;color:#4a6785">${pct}%</span>
-                        </div>
-                        <div style="height:5px;background:#e8edf2;border-radius:100px;overflow:hidden">
-                            <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#3f51b5,#7c4dff);border-radius:100px"></div>
-                        </div>
-                    </div>
-                </div>`; }).join('')}
-            </div>` : ''}
-            <div style="text-align:center;font-family:DM Mono,monospace;font-size:0.6rem;color:#a0aec0;padding-top:1rem;border-top:1px solid #e8edf2">Généré le ${new Date().toLocaleDateString('fr-FR')} — Suivi Financier</div>
-        </div>`;
-        this.notify('Rapport généré ✓', 'success');
-    },
     imprimerRapport() {
-        const el = document.getElementById('rapport-print');
+        const s = this._blRapportMois;
+        this._blImprimer(document.getElementById('bl-rapport-print'), 'Rapport ' + (s || ''));
+    },
+
+    // Ouvre une page imprimable avec uniquement les styles du Bilan
+    _blImprimer(el, titre) {
         if (!el) return;
+        let css = '';
+        for (const sheet of document.styleSheets) {
+            let rules;
+            try { rules = sheet.cssRules; } catch (e) { continue; }
+            for (const r of rules) if (r.cssText.includes('.bl-')) css += r.cssText + '\n';
+        }
         const w = window.open('', '_blank');
-        w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rapport</title>
-            <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=DM+Mono&family=Crimson+Pro&display=swap" rel="stylesheet">
-            <style>body{margin:1.5rem;font-family:'Crimson Pro',serif}@media print{body{margin:0}}</style>
-            </head><body>${el.outerHTML}<script>window.onload=()=>window.print()<\/script></body></html>`);
+        if (!w) { this.notify('Autorise les fenêtres pop-up pour imprimer', 'warning'); return; }
+        const html = el.innerHTML.replace(/<details/g, '<details open');
+        w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>${app._esc(titre)}</title>
+            <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=DM+Mono:wght@400;500&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+            <style>*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+            body{margin:1.5rem auto;max-width:900px;padding:0 1rem;font-family:Inter,sans-serif;color:#1e2a4a;background:#f2f5fb}
+            ${css}
+            .bl-noprint{display:none!important}
+            @media print{body{margin:0 auto;background:#fff}@page{margin:.8cm}.bl-card,.bl-hero,.bl-facts{break-inside:avoid}}</style>
+            </head><body>${html}
+            <div style="text-align:center;font:500 .6rem 'DM Mono',monospace;color:#a0aec0;margin-top:1rem">Généré le ${new Date().toLocaleDateString('fr-FR')} · Vault</div>
+            <script>window.onload=()=>setTimeout(()=>window.print(),400)<\/script></body></html>`);
         w.document.close();
     },
 
@@ -2406,26 +2453,26 @@ const app = {
 <div style="display:flex;flex-direction:column;gap:.65rem">
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-primary)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-primary);font-weight:700;margin-bottom:.25rem">🏅 Bilan annuel</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> Revenus totaux, Dépenses effectives, Épargne nette, Taux d'épargne, tableau mois par mois et top catégories.<br>
-    <strong>Calcul :</strong> revenus = données saisies dans Dépenses (ou salaire en fallback). Dépenses effectives = hors catégories épargne.<br>
-    <strong>Export PDF :</strong> bouton "🖨 Exporter PDF" → page imprimable utilisable comme justificatif bancaire.</p>
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-primary);font-weight:700;margin-bottom:.25rem">🏅 Ton année</div>
+    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> ce que tu as mis de côté depuis janvier (revenus − dépenses, hors virements épargne), ton patrimoine et le nombre de mois où tu es resté sous ton budget.<br>
+    <strong>Astuce :</strong> clique dessus pour ouvrir le bilan annuel complet.</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--success)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--success);font-weight:700;margin-bottom:.25rem">📄 Rapport mensuel</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> rapport mis en page pour un mois donné — revenus, cashflow, taux d'épargne, dépenses par catégorie, PEA, objectifs.<br>
-    <strong>Comment générer :</strong> sélectionne un mois → clique "Générer" → clique "🖨 Imprimer" → dans le navigateur, choisis "Enregistrer en PDF".</p>
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--success);font-weight:700;margin-bottom:.25rem">📄 Bilan annuel & rapport mensuel</div>
+    <p style="font-size:.79rem;margin:0"><strong>Bilan annuel :</strong> ton épargne mois par mois (le meilleur mois en vert), tes faits marquants et où est parti ton argent. Flèches ‹ › pour changer d'année, « ⬇ PDF » pour l'imprimer.<br>
+    <strong>Rapport mensuel :</strong> choisis un mois avec les pastilles puis « Ouvrir ». Le rapport compare chaque catégorie à ta moyenne des 6 mois précédents et explique ce qui a fait la différence. « 🖨 Imprimer / PDF » en bas.<br>
+    <strong>Revenus :</strong> si un mois n'a aucun revenu saisi, ton salaire des paramètres est utilisé (indiqué « estimés »).</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-secondary)">
     <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-secondary);font-weight:700;margin-bottom:.25rem">🎯 Objectifs</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> tes objectifs d'épargne avec progression, montant cible, échéance et effort mensuel requis.<br>
-    <strong>Comment ça marche :</strong> clique "+ Nouvel objectif", entre le nom, montant cible, montant actuel et date cible. L'app calcule combien mettre de côté par mois pour y arriver.</p>
+    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> progression de chaque objectif et combien mettre de côté par mois pour tenir l'échéance.<br>
+    <strong>Suivi automatique :</strong> en créant ou modifiant un objectif (clique dessus), coche les comptes qui servent à l'atteindre (ex. Livret A) : la progression suit alors ton dernier relevé de patrimoine, sans rien saisir.</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--text-tertiary)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--text-tertiary);font-weight:700;margin-bottom:.25rem">📝 Notes Mensuelles</div>
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--text-tertiary);font-weight:700;margin-bottom:.25rem">📝 Notes</div>
     <p style="font-size:.79rem;margin:0"><strong>Usage :</strong> note les événements importants du mois (achat exceptionnel, changement de situation, augmentation de salaire…).<br>
     <strong>Tag :</strong> classe ta note (Général, Dépense exceptionnelle, Revenu exceptionnel, Objectif atteint…) pour mieux filtrer plus tard.<br>
     <strong>Intérêt :</strong> dans 2 ans, ces notes t'expliqueront les anomalies dans tes chiffres.</p>
@@ -5851,11 +5898,10 @@ const app = {
             { id: 'pat-historique', label: 'Historique Patrimoine',    sub: 'Tableau historique' },
         ],
         'bilan': [
-            { id: 'bilan-annuel',     label: '🏅 Bilan annuel',       sub: 'Résumé par année' },
-            { id: 'bilan-rapport',    label: '📄 Rapport mensuel',    sub: 'Analyse du mois' },
+            { id: 'bilan-annuel',     label: '🏅 Ton année',          sub: 'L\'année en un coup d\'œil' },
+            { id: 'bilan-rapport',    label: '📄 Bilan & rapport',    sub: 'Bilan annuel et rapport mensuel' },
             { id: 'bilan-objectifs',  label: '🎯 Objectifs',          sub: 'Suivi des objectifs' },
-            { id: 'bilan-notes',      label: '📝 Notes Mensuelles',   sub: 'Journal financier' },
-            { id: 'bilan-hist-notes', label: 'Historique des notes',  sub: 'Toutes les notes' },
+            { id: 'bilan-notes',      label: '📝 Notes',              sub: 'Journal financier' },
         ],
     },
 
@@ -5865,7 +5911,7 @@ const app = {
         'depenses':   [['dep-pointage'],['dep-revenus','dep-saisie'],['dep-etat-cat'],['dep-comparaison','dep-regle5030','dep-recurrentes'],['dep-analyse'],['dep-historique'],['dep-hist-revenus']],
         'pea':        [['pea-stats'],['pea-saisie'],['pea-graphique'],['pea-historique']],
         'patrimoine': [['pat-stats'],['pat-historique']],
-        'bilan':      [['bilan-annuel'],['bilan-rapport'],['bilan-objectifs'],['bilan-notes'],['bilan-hist-notes']],
+        'bilan':      [['bilan-annuel'],['bilan-rapport'],['bilan-objectifs'],['bilan-notes']],
     },
 
     /* ══════════════════════════════════════════════════════════════════════
@@ -8255,7 +8301,7 @@ const app = {
         if (totEl) totEl.textContent = this.formatCurrency(total);
     },
 
-    ouvrirAjoutObjectif() {
+    ouvrirAjoutObjectif(id) {
         let modal = document.getElementById('objectifModal');
         if (!modal) {
             modal = document.createElement('div');
@@ -8263,33 +8309,77 @@ const app = {
             modal.className = 'modal';
             document.body.appendChild(modal);
         }
+        const o = id != null ? (this.data.objectifs || []).find(x => String(x.id) === String(id)) : null;
+        this._objEditId = o ? String(o.id) : null;
+        const lies = o?.comptesLies || [];
+        const comptes = this.data.comptes || [];
+        const esc = v => app._esc(String(v ?? ''));
+        const comptesHtml = comptes.length ? `
+                    <div class="form-group" style="margin:0"><label class="form-label">Suivre automatiquement avec mes comptes <span style="font-weight:400;color:var(--text-tertiary)">(optionnel)</span></label>
+                        <div class="obj-comptes">${comptes.map(c => `<label class="obj-compte"><input type="checkbox" value="${esc(c)}" ${lies.includes(c) ? 'checked' : ''} onchange="app._objMajActuelLie()"> ${esc(c)}</label>`).join('')}</div>
+                        <div class="obj-hint" id="obj-lie-hint"></div>
+                    </div>` : '';
         modal.innerHTML = `
-            <div class="modal-header"><h2 class="modal-title">🎯 Nouvel objectif</h2></div>
+            <div class="modal-header"><h2 class="modal-title">🎯 ${o ? 'Modifier l\'objectif' : 'Nouvel objectif'}</h2></div>
             <div class="modal-body">
                 <div style="display:flex;flex-direction:column;gap:.65rem">
                     <div style="display:grid;grid-template-columns:1fr auto;gap:.65rem;align-items:end">
-                        <div class="form-group" style="margin:0"><label class="form-label">Nom</label><input type="text" class="form-input" id="obj-nom" placeholder="Voyage Japon..."></div>
+                        <div class="form-group" style="margin:0"><label class="form-label">Nom</label><input type="text" class="form-input" id="obj-nom" placeholder="Voyage Japon..." value="${esc(o?.nom)}"></div>
                         <div class="form-group" style="margin:0"><label class="form-label">Emoji</label>
                             <div class="emoji-picker-wrap">
-                                <button type="button" class="emoji-preview-btn" onclick="app.openEmojiPicker('obj-emoji', this)">🎯</button>
-                                <input type="text" class="form-input" id="obj-emoji" placeholder="🎯" style="display:none">
+                                <button type="button" class="emoji-preview-btn" onclick="app.openEmojiPicker('obj-emoji', this)">${esc(o?.emoji || '🎯')}</button>
+                                <input type="text" class="form-input" id="obj-emoji" placeholder="🎯" style="display:none" value="${esc(o?.emoji)}">
                             </div>
                         </div>
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem">
-                        <div class="form-group" style="margin:0"><label class="form-label">Montant cible (€)</label><input type="number" class="form-input" id="obj-cible" placeholder="3500" step="100"></div>
-                        <div class="form-group" style="margin:0"><label class="form-label">Déjà épargné (€)</label><input type="number" class="form-input" id="obj-actuel" placeholder="0" step="100"></div>
+                        <div class="form-group" style="margin:0"><label class="form-label">Montant cible (€)</label><input type="number" class="form-input" id="obj-cible" placeholder="3500" step="100" value="${esc(o?.cible)}"></div>
+                        <div class="form-group" style="margin:0"><label class="form-label">Déjà épargné (€)</label><input type="number" class="form-input" id="obj-actuel" placeholder="0" step="100" value="${esc(o ? o.actuel : '')}"></div>
                     </div>
-                    <div class="form-group" style="margin:0"><label class="form-label">Date cible</label><input type="month" class="form-input" id="obj-date"></div>
+                    <div class="form-group" style="margin:0"><label class="form-label">Date cible</label><input type="month" class="form-input" id="obj-date" value="${esc(o?.dateTarget)}"></div>
+                    ${comptesHtml}
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="vp-btn-cancel" onclick="document.getElementById('objectifModal').classList.remove('active');document.getElementById('overlay').classList.remove('active')">Annuler</button>
-                <button class="vp-btn-save" onclick="app.ajouterObjectif()">+ Ajouter</button>
+                <button class="vp-btn-cancel" onclick="app._fermerObjectifModal()">Annuler</button>
+                ${o ? `<button class="vp-btn-save vp-btn-danger" onclick="app._fermerObjectifModal();app.supprimerObjectif('${esc(o.id)}')">Supprimer</button>` : ''}
+                <button class="vp-btn-save" onclick="app.ajouterObjectif()">${o ? 'Enregistrer' : '+ Ajouter'}</button>
             </div>
         `;
         modal.classList.add('active');
         document.getElementById('overlay').classList.add('active');
+        this._objMajActuelLie();
+    },
+
+    _fermerObjectifModal() {
+        document.getElementById('objectifModal')?.classList.remove('active');
+        document.getElementById('overlay')?.classList.remove('active');
+    },
+
+    // Comptes cochés dans le formulaire → « Déjà épargné » calculé automatiquement
+    _objMajActuelLie() {
+        const lies = [...document.querySelectorAll('#objectifModal .obj-compte input:checked')].map(i => i.value);
+        const input = document.getElementById('obj-actuel');
+        const hint = document.getElementById('obj-lie-hint');
+        if (!input) return;
+        if (lies.length) {
+            input.value = Math.round(this._objSoldeComptes(lies));
+            input.readOnly = true;
+            input.style.opacity = '.6';
+            if (hint) hint.textContent = 'Calculé depuis ton dernier relevé de patrimoine, mis à jour automatiquement.';
+        } else {
+            input.readOnly = false;
+            input.style.opacity = '';
+            if (hint) hint.textContent = '';
+        }
+    },
+
+    _objSoldeComptes(comptes) {
+        const pats = (this.data.patrimoine || []).filter(p => p.mois)
+            .sort((a, b) => (a.date || a.mois).localeCompare(b.date || b.mois));
+        const dernier = pats[pats.length - 1];
+        if (!dernier) return 0;
+        return comptes.reduce((s, c) => s + (parseFloat(dernier[c]) || 0), 0);
     },
 
     ajouterObjectif() {
@@ -8298,15 +8388,17 @@ const app = {
         const emojiBtn = emojiInput.closest('.emoji-picker-wrap')?.querySelector('.emoji-preview-btn');
         const emoji = emojiInput.value.trim() || (emojiBtn ? emojiBtn.textContent.trim() : '') || '🎯';
         const cible = parseFloat(document.getElementById('obj-cible').value);
-        const actuel = parseFloat(document.getElementById('obj-actuel').value) || 0;
+        const comptesLies = [...document.querySelectorAll('#objectifModal .obj-compte input:checked')].map(i => i.value);
+        const actuel = comptesLies.length ? this._objSoldeComptes(comptesLies) : (parseFloat(document.getElementById('obj-actuel').value) || 0);
         const dateTarget = document.getElementById('obj-date').value;
         if (!nom || !cible) { this.notify('Remplir nom et cible', 'error'); return; }
-        this.data.objectifs.push({ id: crypto.randomUUID(), nom, emoji, cible, actuel, dateTarget });
+        const existant = this._objEditId ? this.data.objectifs.find(o => String(o.id) === this._objEditId) : null;
+        if (existant) Object.assign(existant, { nom, emoji, cible, actuel, dateTarget, comptesLies });
+        else this.data.objectifs.push({ id: crypto.randomUUID(), nom, emoji, cible, actuel, dateTarget, comptesLies });
         this.save();
         this.refreshObjectifs();
-        document.getElementById('objectifModal').classList.remove('active');
-        document.getElementById('overlay').classList.remove('active');
-        this.notify('Objectif ajouté', 'success');
+        this._fermerObjectifModal();
+        this.notify(existant ? 'Objectif mis à jour' : 'Objectif ajouté', 'success');
     },
 
     mettreAJourObjectif(id, nouvelActuel) {
@@ -8324,116 +8416,48 @@ const app = {
     },
 
     refreshObjectifs() {
+        const objs = this.data.objectifs || [];
+        // Objectifs liés à des comptes : la progression suit le dernier relevé de patrimoine
+        objs.forEach(o => { if (o.comptesLies?.length) o.actuel = this._objSoldeComptes(o.comptesLies); });
+        const encours = objs.filter(o => o.actuel < o.cible);
+        const dc = document.getElementById('d-obj-count');
+        if (dc) dc.textContent = `${encours.length} en cours`;
         const list = document.getElementById('objectifs-list');
-        const calcCard = document.getElementById('objectifs-calcul-card');
         if (!list) return;
-        const objs = this.data.objectifs;
-        const now = new Date();
-
-        document.getElementById('obj-count').textContent = objs.length;
-        document.getElementById('obj-total-cible').textContent = this.formatCurrency(objs.reduce((s, o) => s + o.cible, 0));
 
         if (objs.length === 0) {
-            list.innerHTML = `<div class="v-empty">${(this._emptyIllus||{}).bilan||''}<div class="v-empty-title">Aucun objectif</div><p class="v-empty-desc">Définis tes premiers objectifs d'épargne pour te motiver au quotidien.</p></div>`;
-            if (calcCard) calcCard.style.display = 'none';
-            document.getElementById('obj-mensuel-total').textContent = '0 €';
-
-            const dc = document.getElementById('d-obj-count'); if(dc) dc.textContent = '0 en cours';
+            list.innerHTML = `<div class="v-empty" style="padding:1.25rem 1rem">${(this._emptyIllus||{}).bilan||''}<div class="v-empty-title">Aucun objectif</div><p class="v-empty-desc">Définis tes premiers objectifs d'épargne pour te motiver au quotidien.</p></div>`;
             return;
         }
 
-        let totalMensuel = 0;
-        let calcHtml = '';
-        const gradients = [
-            'linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-end))',
-            'linear-gradient(135deg,#4a1a6b,#7c4dff)',
-            'linear-gradient(135deg,#0a3d2e,var(--success))',
-            'linear-gradient(135deg,#5c2000,var(--warning))',
-            'linear-gradient(135deg,#1a0a3d,#3949ab)',
-            'linear-gradient(135deg,#3d0a0a,#e53935)',
-        ];
-
-        const termines = objs.filter(o => (o.actuel / o.cible) >= 1);
-        const encours  = objs.filter(o => (o.actuel / o.cible) < 1);
-
-        let gridHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;margin-bottom:1.5rem">';
-
-        [...encours, ...termines].forEach((o, idx) => {
-            const pct = Math.min(100, (o.actuel / o.cible) * 100);
-            const done = pct >= 100;
-            const moisRestants = o.dateTarget ? Math.max(1, Math.ceil((new Date(o.dateTarget + '-01') - now) / (1000*60*60*24*30))) : 12;
-            const mensuel = Math.ceil((o.cible - o.actuel) / moisRestants);
-            totalMensuel += done ? 0 : Math.max(0, mensuel);
-            const dateLabel = o.dateTarget ? new Date(o.dateTarget + '-01').toLocaleDateString('fr-FR', {month:'short', year:'numeric'}) : '—';
-            const grad = done ? 'linear-gradient(135deg,#006b2e,var(--success))' : gradients[idx % gradients.length];
-
-            const salaire = this.data.parametres.salaire || 0;
-            const epMensuelle = salaire > 0 ? salaire * 0.2 : 150;
-            const moisProj = epMensuelle > 0 ? Math.ceil((o.cible - o.actuel) / epMensuelle) : null;
-            let projText = '';
-            if (!done && moisProj) {
-                const projDate = new Date(); projDate.setMonth(projDate.getMonth() + moisProj);
-                const projLabel = projDate.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
-                projText = moisProj <= (moisRestants||999)
-                    ? `<div style="background:rgba(0,200,83,.12);border-radius:8px;padding:.45rem .65rem;font-size:.68rem;color:var(--success);margin-top:.6rem">📊 Au rythme actuel → <strong>${projLabel}</strong></div>`
-                    : `<div style="background:rgba(255,152,0,.1);border-radius:8px;padding:.45rem .65rem;font-size:.68rem;color:var(--warning);margin-top:.6rem">⚡ Augmenter l'épargne pour respecter l'échéance</div>`;
+        const now = new Date();
+        let totalMensuel = 0, nbMensuel = 0;
+        const rows = [...encours, ...objs.filter(o => o.actuel >= o.cible)].map(o => {
+            const pct = o.cible > 0 ? Math.min(100, Math.max(0, o.actuel / o.cible * 100)) : 0;
+            const done = o.actuel >= o.cible;
+            const dateLabel = o.dateTarget ? new Date(o.dateTarget + '-01T12:00').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : '';
+            const parts = [];
+            if (done) parts.push('<b class="bl-pos">Atteint ✓</b>');
+            else parts.push(Math.round(pct) + ' %');
+            if (o.comptesLies?.length) parts.push('suivi automatique : ' + o.comptesLies.map(c => app._esc(c)).join(' + '));
+            if (!done && o.dateTarget) {
+                const [ty, tm] = o.dateTarget.split('-').map(Number);
+                const moisRestants = (ty - now.getFullYear()) * 12 + (tm - 1 - now.getMonth());
+                if (moisRestants <= 0) parts.push('<span class="bl-neg">échéance dépassée</span>');
+                else {
+                    const mensuel = Math.ceil((o.cible - o.actuel) / moisRestants);
+                    totalMensuel += mensuel; nbMensuel++;
+                    parts.push(`à mettre de côté : <b class="obj-mensuel">${this._blEur(mensuel)} / mois</b>`);
+                }
             }
-            const progressColor = done ? 'var(--success)' : pct >= 60 ? 'var(--accent-primary)' : pct >= 30 ? 'var(--warning)' : 'var(--danger)';
-            const doneTag = done ? '<span style="background:rgba(0,200,83,.15);color:var(--success);border:1px solid rgba(0,200,83,.3);border-radius:20px;font-size:.6rem;font-family:DM Mono,monospace;padding:.1rem .5rem;font-weight:600">ATTEINT ✓</span>' : '';
-
-            gridHtml += `
-            <div style="background:var(--bg-card);border-radius:18px;overflow:hidden;box-shadow:8px 8px 20px var(--shadow-light),-8px -8px 20px var(--shadow-dark);transition:transform .2s" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform=''">
-              <div style="background:${grad};padding:1.1rem 1.25rem;position:relative">
-                <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                  <div style="font-size:1.8rem">${app._esc(o.emoji)}</div>
-                  <button onclick="app.supprimerObjectif('${app._esc(String(o.id))}')" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:.7rem;display:flex;align-items:center;justify-content:center">✕</button>
-                </div>
-                <div style="font-weight:700;color:#fff;font-size:.95rem;margin-top:.35rem">${app._esc(o.nom)}</div>
-                <div style="font-size:.65rem;color:rgba(255,255,255,.7);margin-top:.15rem">${dateLabel} ${doneTag}</div>
-              </div>
-              <div style="padding:.9rem 1.1rem">
-                <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.35rem">
-                  <span style="font-weight:700;font-size:1rem;font-family:'Outfit',sans-serif">${this.formatCurrency(o.actuel)}</span>
-                  <span style="color:var(--text-tertiary)">${this.formatCurrency(o.cible)}</span>
-                </div>
-                <div class="progress-bar" style="height:8px;margin:.4rem 0">
-                  <div class="progress-fill" style="width:${pct}%;background:${progressColor}"></div>
-                </div>
-                <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--text-tertiary);margin-bottom:.4rem">
-                  <span>${pct.toFixed(0)}% atteint</span>
-                  ${done ? '' : `<span>${moisRestants} mois restants</span>`}
-                </div>
-                ${projText}
-                ${done ? '' : `
-                <div style="display:flex;gap:.4rem;margin-top:.65rem;align-items:center">
-                  <input type="number" class="form-input" placeholder="Mettre à jour (€)" step="50" style="flex:1;padding:.5rem;font-size:.8rem" onchange="app.mettreAJourObjectif('${app._esc(String(o.id))}', this.value)">
-                </div>`}
-              </div>
-            </div>`;
-
-            calcHtml += `
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.85rem;background:var(--bg-secondary);border-radius:10px;margin-bottom:0.5rem;border:1px solid var(--border-color)">
-                    <div><span style="font-size:0.9rem">${app._esc(o.emoji)}</span> <strong>${app._esc(o.nom)}</strong>
-                        <div style="font-size:0.72rem;color:var(--text-tertiary)">${dateLabel} · ${moisRestants} mois</div>
-                    </div>
-                    <div style="text-align:right">
-                        <div style="font-family:DM Mono,monospace;font-size:0.9rem;font-weight:700;background:linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-end));-webkit-background-clip:text;-webkit-text-fill-color:transparent">${this.formatCurrency(Math.max(0, mensuel))}/mois</div>
-                        <div style="font-size:0.68rem;color:var(--text-tertiary)">Reste ${this.formatCurrency(Math.max(0, o.cible - o.actuel))}</div>
-                    </div>
-                </div>`;
-        });
-
-        gridHtml += '</div>';
-        list.innerHTML = gridHtml;
-
-        if (calcCard) {
-            calcCard.style.display = 'block';
-            document.getElementById('objectifs-calcul').innerHTML = calcHtml;
-            document.getElementById('obj-grand-total').textContent = this.formatCurrency(totalMensuel);
-        }
-        document.getElementById('obj-mensuel-total').textContent = this.formatCurrency(totalMensuel);
-        const dc = document.getElementById('d-obj-count');
-        if(dc) dc.textContent = `${encours.length} en cours`;
+            const couleur = done || pct >= 75 ? 'linear-gradient(90deg,#00c853,#69f0ae)' : '';
+            return `<div class="bl-goal" role="button" tabindex="0" onclick="app.ouvrirAjoutObjectif('${app._esc(String(o.id))}')" title="Modifier l'objectif">
+                <div class="bl-goal-head"><b>${app._esc(o.emoji || '🎯')} ${app._esc(o.nom)}</b><span class="bl-sub">${this._blEur(o.actuel)} / ${this._blEur(o.cible)}${dateLabel ? ' · ' + dateLabel : ''}</span></div>
+                <div class="bl-bar"><i style="width:${pct}%${couleur ? ';background:' + couleur : ''}"></i></div>
+                <div class="bl-sub">${parts.join(' · ')}</div></div>`;
+        }).join('');
+        const total = nbMensuel > 1 ? `<div class="bl-goal-total"><span>Pour tenir tous tes objectifs</span><b>${this._blEur(totalMensuel)} / mois</b></div>` : '';
+        list.innerHTML = rows + total;
     },
 
     ajouterNote() {
@@ -8495,31 +8519,30 @@ const app = {
         if (!container) return;
         const notes = [...this.data.notes].sort((a, b) => b.mois.localeCompare(a.mois));
         if (notes.length === 0) {
-            container.innerHTML = `<div class="v-empty" style="padding:1.5rem 1rem"><div class="v-empty-title">Aucune note</div><p class="v-empty-desc">Ajoute des notes mensuelles pour garder une trace de tes moments financiers.</p></div>`;
+            container.innerHTML = `<div class="v-empty" style="padding:1.25rem 1rem"><div class="v-empty-title">Aucune note</div><p class="v-empty-desc">Note un événement du mois (prime, grosse dépense, changement de situation) : dans un an, ça t'expliquera tes chiffres.</p></div>`;
             return;
         }
-        const tagColors = {
-            'Général': 'var(--accent-primary)',
-            'Dépense exceptionnelle': 'var(--warning)',
-            'Revenu exceptionnel': 'var(--success)',
-            'Événement important': 'var(--accent-secondary)',
-            'Objectif atteint 🎉': 'var(--success)'
+        const tagCourt = {
+            'Général': 'général',
+            'Dépense exceptionnelle': 'dépense',
+            'Revenu exceptionnel': 'revenu',
+            'Événement important': 'événement',
+            'Objectif atteint': 'objectif',
+            'Objectif atteint 🎉': 'objectif'
         };
-        container.innerHTML = notes.map(n => {
-            const color = tagColors[n.tag] || 'var(--accent-primary)';
-            const dateLabel = new Date(n.mois + '-01').toLocaleDateString('fr-FR', {month:'long', year:'numeric'});
-            return `
-            <div style="background:var(--bg-secondary);border-radius:12px;padding:1rem 1.25rem;margin-bottom:0.75rem;border-left:3px solid ${color};border:1px solid var(--border-color);border-left:3px solid ${color}">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
-                    <div style="display:flex;align-items:center;gap:0.5rem">
-                        <span style="font-family:DM Mono,monospace;font-size:0.78rem;color:${color};font-weight:600">${dateLabel}</span>
-                        <span style="font-size:0.65rem;padding:0.15rem 0.5rem;border-radius:4px;background:${color}22;color:${color}">${app._esc(n.tag)}</span>
-                    </div>
-                    <button class="btn btn-small btn-secondary" onclick="app.supprimerNote('${n.id}')">✕</button>
-                </div>
-                <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5">${app._esc(n.texte)}</div>
-            </div>`;
+        const visibles = this._notesToutes ? notes : notes.slice(0, 3);
+        const rows = visibles.map(n => {
+            const [y, m] = n.mois.split('-').map(Number);
+            const dateLabel = new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+            const tag = tagCourt[n.tag] || (n.tag || '').toLowerCase();
+            return `<div class="bl-note"><span class="bl-note-date">${dateLabel}</span>
+                <div>${app._esc(n.texte)} ${tag ? `<span class="bl-tag">${app._esc(tag)}</span>` : ''}</div>
+                <button class="bl-note-del" onclick="app.supprimerNote('${app._esc(String(n.id))}')" title="Supprimer la note">✕</button></div>`;
         }).join('');
+        const plus = notes.length > 3
+            ? `<button class="bl-link" onclick="app._notesToutes=!app._notesToutes;app.refreshNotes()">${this._notesToutes ? 'Afficher moins ‹' : `+ ${notes.length - 3} note${notes.length - 3 > 1 ? 's' : ''} plus ancienne${notes.length - 3 > 1 ? 's' : ''} ›`}</button>`
+            : '';
+        container.innerHTML = rows + plus;
     },
 
     ouvrirAjoutLignePEA() {
@@ -9944,7 +9967,7 @@ const app = {
         if (e.target.id !== 'budget-modal-overlay') return;
         // Fix : ignore si le mousedown a commencé à l'intérieur d'une modal ouverte
         if (this._budgetMouseDownInside) return;
-        ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats','modal-emoji-cat','modal-cat-detail'].forEach(id => {
+        ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport'].forEach(id => {
             document.getElementById(id)?.classList.remove('open');
         });
         document.getElementById('budget-modal-overlay')?.classList.remove('open');
