@@ -28,6 +28,7 @@ const app = {
         lignesPEA: [],
         allocationCible: {},
         classif503020: {},
+        repartitionComptes: {},
         catEmojis: {},
         parametres: {
             theme: 'auto',
@@ -739,7 +740,7 @@ const app = {
         if (!titleEl) return;
 
         const PRE = [
-            [/(objectif)/i,             'Bilan · Objectifs'],
+            [/(objectif|répartir)/i,    'Bilan · Objectifs'],
             [/(récurrence|recurrence)/i, 'Budget · Récurrences'],
             [/(ligne.*pea|pea.*ligne|nouveau.*pea)/i, 'PEA · Portefeuille'],
             [/(retraite)/i,             'Projection · Retraite'],
@@ -1057,6 +1058,7 @@ const app = {
             lignesPEA:          loaded.lignesPEA           || [],
             allocationCible:    loaded.allocationCible     || {},
             classif503020:      loaded.classif503020       || {},
+            repartitionComptes: loaded.repartitionComptes  || {},
             chartColors:        loaded.chartColors          || {},
             hiddenCards:        loaded.hiddenCards          || {},
             cardOrder:          loaded.cardOrder            || {},
@@ -8362,24 +8364,250 @@ const app = {
         const input = document.getElementById('obj-actuel');
         const hint = document.getElementById('obj-lie-hint');
         if (!input) return;
-        if (lies.length) {
-            input.value = Math.round(this._objSoldeComptes(lies));
-            input.readOnly = true;
-            input.style.opacity = '.6';
-            if (hint) hint.textContent = 'Calculé depuis ton dernier relevé de patrimoine, mis à jour automatiquement.';
-        } else {
+        if (!lies.length) {
             input.readOnly = false;
             input.style.opacity = '';
-            if (hint) hint.textContent = '';
+            if (hint) hint.innerHTML = '';
+            return;
         }
+        const id = this._objEditId;
+        const o = id ? this.data.objectifs.find(x => String(x.id) === id) : null;
+        const avant = o?.comptesLies || [];
+        let total = 0;
+        const partages = [];
+        lies.forEach(c => {
+            const autres = this._objLies(c).filter(x => String(x.id) !== id);
+            // Compte déjà lié : répartition actuelle. Nouveau lien : parts égales (règle appliquée à l'enregistrement)
+            const part = o && avant.includes(c) ? this._objPart(c, o.id) : this._objSoldeCompte(c) / (autres.length + 1);
+            total += part;
+            if (autres.length) partages.push(`${app._esc(c)} partagé avec ${autres.map(x => app._esc((x.emoji || '🎯') + ' ' + x.nom)).join(', ')} : ta part ${this._blEur(part)}`);
+        });
+        input.value = Math.round(total);
+        input.readOnly = true;
+        input.style.opacity = '.6';
+        if (hint) hint.innerHTML = 'Calculé depuis ton dernier relevé de patrimoine, mis à jour automatiquement.'
+            + (partages.length ? '<br>' + partages.join('<br>') + '<br>Tu peux changer la répartition avec « ⚖ Répartir ».' : '');
     },
 
-    _objSoldeComptes(comptes) {
+    /* ── Répartition des comptes entre objectifs ─────────── */
+    _objDernierReleve() {
         const pats = (this.data.patrimoine || []).filter(p => p.mois)
             .sort((a, b) => (a.date || a.mois).localeCompare(b.date || b.mois));
-        const dernier = pats[pats.length - 1];
-        if (!dernier) return 0;
-        return comptes.reduce((s, c) => s + (parseFloat(dernier[c]) || 0), 0);
+        return pats[pats.length - 1] || null;
+    },
+    _objSoldeCompte(compte) {
+        const d = this._objDernierReleve();
+        return d ? Math.max(0, parseFloat(d[compte]) || 0) : 0;
+    },
+    // Objectifs qui utilisent ce compte, dans l'ordre de la liste
+    _objLies(compte) {
+        return (this.data.objectifs || []).filter(o => (o.comptesLies || []).includes(compte));
+    },
+    // Part d'un compte attribuée à un objectif : parts égales par défaut, sinon % ou € choisis.
+    // En €, si le compte vaut moins que le total réparti, les objectifs sont servis dans l'ordre de la liste.
+    _objPart(compte, objId, cfg = (this.data.repartitionComptes || {})[compte], lies = this._objLies(compte).map(o => String(o.id))) {
+        const id = String(objId);
+        if (!lies.includes(id)) return 0;
+        const solde = this._objSoldeCompte(compte);
+        if (!cfg) return solde / lies.length;
+        const v = k => Math.max(0, parseFloat(cfg.parts?.[k]) || 0);
+        if (cfg.mode === 'eur') {
+            let reste = solde;
+            for (const k of lies) {
+                const g = Math.min(v(k), reste);
+                reste -= g;
+                if (k === id) return g;
+            }
+            return 0;
+        }
+        return solde * v(id) / 100;
+    },
+    _objActuelLie(o) {
+        return (o.comptesLies || []).reduce((s, c) => s + this._objPart(c, o.id), 0);
+    },
+    _objLibelleCompte(c, o) {
+        const cfg = (this.data.repartitionComptes || {})[c];
+        const n = this._objLies(c).length;
+        if (!cfg) return n > 1 ? `${app._esc(c)} (${Math.round(100 / n)} %)` : app._esc(c);
+        const v = parseFloat(cfg.parts?.[String(o.id)]) || 0;
+        if (cfg.mode === 'eur') return `${app._esc(c)} (${this._blEur(v)})`;
+        return v >= 100 ? app._esc(c) : `${app._esc(c)} (${v} %)`;
+    },
+
+    _repCouleurs: ['#5c4ee6', '#00b0ff', '#00c853', '#ff9100', '#e040fb', '#ff5252'],
+
+    _repPartsEgales(n) {
+        const base = Math.floor(100 / n);
+        return Array.from({ length: n }, (_, i) => base + (i < 100 - base * n ? 1 : 0));
+    },
+
+    ouvrirRepartition() {
+        const rep = this.data.repartitionComptes || {};
+        const comptes = (this.data.comptes || []).filter(c => this._objLies(c).length);
+        if (!comptes.length) { this.notify('Coche d\'abord un compte dans un objectif', 'warning'); return; }
+        // Brouillon : une entrée par compte utilisé, valeurs dans l'ordre des objectifs liés
+        this._repDraft = comptes.map(c => {
+            const lies = this._objLies(c);
+            const cfg = rep[c];
+            const valeurs = cfg ? lies.map(o => Math.max(0, parseFloat(cfg.parts?.[String(o.id)]) || 0)) : this._repPartsEgales(lies.length);
+            return { compte: c, mode: cfg?.mode === 'eur' ? 'eur' : 'pct', ids: lies.map(o => String(o.id)), valeurs };
+        });
+        let modal = document.getElementById('repartitionModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'repartitionModal';
+            modal.className = 'modal rep-modal';
+            document.body.appendChild(modal);
+        }
+        this._repRender();
+        modal.classList.add('active');
+        document.getElementById('overlay').classList.add('active');
+    },
+
+    _repCfg(d) {
+        return { mode: d.mode, parts: Object.fromEntries(d.ids.map((id, k) => [id, d.valeurs[k]])) };
+    },
+
+    _repRender() {
+        const modal = document.getElementById('repartitionModal');
+        if (!modal || !this._repDraft) return;
+        const objs = this.data.objectifs || [];
+        const couleur = id => this._repCouleurs[objs.findIndex(o => String(o.id) === id) % this._repCouleurs.length];
+        const blocs = this._repDraft.map((d, i) => {
+            const solde = this._objSoldeCompte(d.compte);
+            const rows = d.ids.map((id, k) => {
+                const o = objs.find(x => String(x.id) === id);
+                const unite = d.mode === 'pct' ? '%' : '€';
+                return `<div class="rep-row">
+                    <span class="rep-nom"><i class="rep-dot" style="background:${couleur(id)}"></i>${app._esc((o?.emoji || '🎯') + ' ' + (o?.nom || ''))}</span>
+                    <span class="rep-ctrl"><button type="button" onclick="app._repStep(${i},${k},-1)" aria-label="Moins">−</button><input type="number" min="0" step="${d.mode === 'pct' ? 5 : 50}" value="${d.valeurs[k]}" oninput="app._repSet(${i},${k},this.value)"><em>${unite}</em><button type="button" onclick="app._repStep(${i},${k},1)" aria-label="Plus">+</button></span>
+                    <b class="rep-eq" id="rep-eq-${i}-${k}"></b></div>`;
+            }).join('');
+            return `<div class="rep-acc">
+                <div class="rep-head"><div><b>${app._esc(d.compte)}</b> <span class="bl-sub">${this._blEur(solde)}</span></div>
+                  <div class="rep-seg"><button type="button" class="${d.mode === 'pct' ? 'on' : ''}" onclick="app._repMode(${i},'pct')">%</button><button type="button" class="${d.mode === 'eur' ? 'on' : ''}" onclick="app._repMode(${i},'eur')">€</button></div></div>
+                <div class="rep-bar" id="rep-bar-${i}"></div>
+                ${rows}
+                <div class="rep-row rep-libre"><span class="rep-nom"><i class="rep-dot" style="background:#e3e8f2"></i>Non affecté</span><span id="rep-free-${i}"></span></div>
+                <div class="rep-warn" id="rep-warn-${i}"></div></div>`;
+        }).join('');
+        const inutilises = (this.data.comptes || []).filter(c => !this._objLies(c).length);
+        modal.innerHTML = `
+            <div class="modal-header"><h2 class="modal-title">⚖ Répartir mes comptes</h2></div>
+            <div class="modal-body">
+                <p class="rep-intro">Choisis quelle part de chaque compte sert à chaque objectif, en <b>%</b> ou en <b>€</b>. Mettre 0 retire le compte de l'objectif.</p>
+                ${blocs}
+                ${inutilises.length ? `<div class="rep-inutil">${inutilises.map(c => app._esc(c)).join(' · ')} : utilisé${inutilises.length > 1 ? 's' : ''} par aucun objectif</div>` : ''}
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary rep-egal" onclick="app._repEgal()">Parts égales partout</button>
+                <button class="vp-btn-cancel" onclick="app._fermerRepartition()">Annuler</button>
+                <button class="vp-btn-save" id="rep-save" onclick="app.enregistrerRepartition()">Enregistrer</button>
+            </div>`;
+        delete modal.dataset.vpDone;
+        if (modal.classList.contains('active')) this._vpPatchModal?.(modal);
+        this._repDraft.forEach((_, i) => this._repMaj(i));
+    },
+
+    // Met à jour la barre, les montants et les alertes d'un compte sans toucher aux champs (garde le focus)
+    _repMaj(i) {
+        const d = this._repDraft?.[i];
+        if (!d) return;
+        const objs = this.data.objectifs || [];
+        const solde = this._objSoldeCompte(d.compte);
+        const cfg = this._repCfg(d);
+        const total = d.valeurs.reduce((s, v) => s + v, 0);
+        const parts = d.ids.map(id => this._objPart(d.compte, id, cfg, d.ids));
+        const bar = document.getElementById('rep-bar-' + i);
+        if (bar) bar.innerHTML = d.ids.map((id, k) => {
+            const w = solde > 0 ? parts[k] / solde * 100 : (d.mode === 'pct' ? Math.min(100, d.valeurs[k]) : 0);
+            return `<i style="width:${w}%;background:${this._repCouleurs[objs.findIndex(o => String(o.id) === id) % this._repCouleurs.length]}"></i>`;
+        }).join('');
+        d.ids.forEach((id, k) => {
+            const el = document.getElementById(`rep-eq-${i}-${k}`);
+            if (!el) return;
+            el.textContent = d.mode === 'pct' ? this._blEur(parts[k]) : (solde > 0 ? Math.round(parts[k] / solde * 100) + ' %' : '—');
+        });
+        const libre = d.mode === 'pct' ? Math.max(0, 100 - total) : Math.max(0, solde - total);
+        const freeEl = document.getElementById('rep-free-' + i);
+        if (freeEl) freeEl.textContent = d.mode === 'pct' ? `${libre} % · ${this._blEur(solde * libre / 100)}` : this._blEur(libre);
+        const warn = document.getElementById('rep-warn-' + i);
+        let msg = '', bloque = false;
+        if (d.mode === 'pct' && total > 100) { msg = `Total ${total} % : il faut 100 % maximum.`; bloque = true; }
+        else if (d.mode === 'eur' && total > solde) {
+            const dernier = objs.find(o => String(o.id) === d.ids[d.ids.length - 1]);
+            msg = `Tu répartis ${this._blEur(total)} mais le compte vaut ${this._blEur(solde)} : les objectifs sont servis dans l'ordre, ${app._esc(dernier?.nom || '')} reçoit moins.`;
+        }
+        if (warn) { warn.innerHTML = msg; warn.className = 'rep-warn' + (msg ? (bloque ? ' err' : ' on') : ''); }
+        d.bloque = bloque;
+        const save = document.getElementById('rep-save');
+        if (save) save.disabled = this._repDraft.some(x => x.bloque);
+    },
+
+    _repSet(i, k, val) {
+        const d = this._repDraft?.[i];
+        if (!d) return;
+        d.valeurs[k] = Math.max(0, Math.round(parseFloat(val) || 0));
+        this._repMaj(i);
+    },
+    _repStep(i, k, sens) {
+        const d = this._repDraft?.[i];
+        if (!d) return;
+        const pas = d.mode === 'pct' ? 5 : 50;
+        d.valeurs[k] = Math.max(0, (Math.round(d.valeurs[k] / pas) + sens) * pas);
+        if (d.mode === 'pct') d.valeurs[k] = Math.min(100, d.valeurs[k]);
+        this._repRender();
+    },
+    _repMode(i, mode) {
+        const d = this._repDraft?.[i];
+        if (!d || d.mode === mode) return;
+        const solde = this._objSoldeCompte(d.compte);
+        d.valeurs = mode === 'eur'
+            ? d.valeurs.map(p => Math.round(solde * p / 100))
+            : d.valeurs.map(e => solde > 0 ? Math.min(100, Math.round(e / solde * 100)) : 0);
+        d.mode = mode;
+        this._repRender();
+    },
+    _repEgal() {
+        (this._repDraft || []).forEach(d => { d.mode = 'pct'; d.valeurs = this._repPartsEgales(d.ids.length); });
+        this._repRender();
+    },
+
+    _fermerRepartition() {
+        document.getElementById('repartitionModal')?.classList.remove('active');
+        document.getElementById('overlay')?.classList.remove('active');
+        this._repDraft = null;
+    },
+
+    enregistrerRepartition() {
+        if (!this._repDraft || this._repDraft.some(d => d.bloque)) return;
+        if (!this.data.repartitionComptes) this.data.repartitionComptes = {};
+        this._repDraft.forEach(d => {
+            const garde = d.ids.filter((id, k) => d.valeurs[k] > 0);
+            // 0 = le compte est retiré de l'objectif
+            d.ids.forEach((id, k) => {
+                if (d.valeurs[k] > 0) return;
+                const o = this.data.objectifs.find(x => String(x.id) === id);
+                if (o) o.comptesLies = (o.comptesLies || []).filter(c => c !== d.compte);
+            });
+            if (!garde.length) delete this.data.repartitionComptes[d.compte];
+            else this.data.repartitionComptes[d.compte] = {
+                mode: d.mode,
+                parts: Object.fromEntries(d.ids.map((id, k) => [id, d.valeurs[k]]).filter(([, v]) => v > 0))
+            };
+        });
+        this.refreshObjectifs();
+        this.save();
+        this._fermerRepartition();
+        this.notify('Répartition enregistrée', 'success');
+    },
+
+    // Un compte ajouté ou retiré d'un objectif → sa répartition repart à parts égales
+    _repLienChange(comptes) {
+        const rep = this.data.repartitionComptes || {};
+        const remis = comptes.filter(c => rep[c]);
+        remis.forEach(c => delete rep[c]);
+        return remis;
     },
 
     ajouterObjectif() {
@@ -8389,16 +8617,22 @@ const app = {
         const emoji = emojiInput.value.trim() || (emojiBtn ? emojiBtn.textContent.trim() : '') || '🎯';
         const cible = parseFloat(document.getElementById('obj-cible').value);
         const comptesLies = [...document.querySelectorAll('#objectifModal .obj-compte input:checked')].map(i => i.value);
-        const actuel = comptesLies.length ? this._objSoldeComptes(comptesLies) : (parseFloat(document.getElementById('obj-actuel').value) || 0);
+        const actuelSaisi = parseFloat(document.getElementById('obj-actuel').value) || 0;
         const dateTarget = document.getElementById('obj-date').value;
         if (!nom || !cible) { this.notify('Remplir nom et cible', 'error'); return; }
         const existant = this._objEditId ? this.data.objectifs.find(o => String(o.id) === this._objEditId) : null;
-        if (existant) Object.assign(existant, { nom, emoji, cible, actuel, dateTarget, comptesLies });
-        else this.data.objectifs.push({ id: crypto.randomUUID(), nom, emoji, cible, actuel, dateTarget, comptesLies });
-        this.save();
+        const avant = existant?.comptesLies || [];
+        const changes = [...comptesLies.filter(c => !avant.includes(c)), ...avant.filter(c => !comptesLies.includes(c))];
+        const remis = this._repLienChange(changes);
+        const o = existant || { id: crypto.randomUUID() };
+        Object.assign(o, { nom, emoji, cible, actuel: actuelSaisi, dateTarget, comptesLies });
+        if (!existant) this.data.objectifs.push(o);
+        if (comptesLies.length) o.actuel = this._objActuelLie(o);
         this.refreshObjectifs();
+        this.save();
         this._fermerObjectifModal();
-        this.notify(existant ? 'Objectif mis à jour' : 'Objectif ajouté', 'success');
+        this.notify((existant ? 'Objectif mis à jour' : 'Objectif ajouté')
+            + (remis.length ? ` · ${remis.join(', ')} repartagé${remis.length > 1 ? 's' : ''} à parts égales` : ''), 'success');
     },
 
     mettreAJourObjectif(id, nouvelActuel) {
@@ -8408,7 +8642,10 @@ const app = {
 
     supprimerObjectif(id) {
         this.showModal('Supprimer l\'objectif', 'Voulez-vous vraiment supprimer cet objectif ?', () => {
+            const o = this.data.objectifs.find(x => String(x.id) === String(id));
+            this._repLienChange(o?.comptesLies || []);
             this.data.objectifs = this.data.objectifs.filter(o => String(o.id) !== String(id));
+            this.refreshObjectifs();
             this.save();
             this.refreshObjectifs();
             this.notify('Objectif supprimé', 'success');
@@ -8418,7 +8655,9 @@ const app = {
     refreshObjectifs() {
         const objs = this.data.objectifs || [];
         // Objectifs liés à des comptes : la progression suit le dernier relevé de patrimoine
-        objs.forEach(o => { if (o.comptesLies?.length) o.actuel = this._objSoldeComptes(o.comptesLies); });
+        objs.forEach(o => { if (o.comptesLies?.length) o.actuel = this._objActuelLie(o); });
+        const repBtn = document.getElementById('obj-rep-btn');
+        if (repBtn) repBtn.style.display = objs.some(o => o.comptesLies?.length) ? '' : 'none';
         const encours = objs.filter(o => o.actuel < o.cible);
         const dc = document.getElementById('d-obj-count');
         if (dc) dc.textContent = `${encours.length} en cours`;
@@ -8439,7 +8678,7 @@ const app = {
             const parts = [];
             if (done) parts.push('<b class="bl-pos">Atteint ✓</b>');
             else parts.push(Math.round(pct) + ' %');
-            if (o.comptesLies?.length) parts.push('suivi automatique : ' + o.comptesLies.map(c => app._esc(c)).join(' + '));
+            if (o.comptesLies?.length) parts.push('suivi automatique : ' + o.comptesLies.map(c => this._objLibelleCompte(c, o)).join(' + '));
             if (!done && o.dateTarget) {
                 const [ty, tm] = o.dateTarget.split('-').map(Number);
                 const moisRestants = (ty - now.getFullYear()) * 12 + (tm - 1 - now.getMonth());
