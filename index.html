@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh60">
+    <link rel="stylesheet" href="app.css?v=enh61">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -344,26 +344,8 @@
       </div>
     </div>
     <div class="budget-an-wrap" id="budget-an-wrap">
-      <button class="budget-an-btn" id="budget-an-btn" onclick="app.toggleBudgetAnalyseMenu()">🔍 Analyse <span class="budget-an-chevron">▾</span></button>
+      <button class="budget-an-btn" id="budget-an-btn" onclick="app.openAnalyse()">🔍 Analyse</button>
       <button class="tab-customize-btn tab-help-btn" onclick="app.openHelp('depenses')" title="Aide" style="margin-left:.5rem">❓ Aide</button>
-      <div class="budget-an-menu" id="budget-an-menu">
-        <div class="budget-an-menu-header"><span class="budget-an-menu-label">Choisissez un outil</span></div>
-        <div class="budget-an-item" onclick="app.openBudgetAnalyseModal('comp')">
-          <div class="budget-an-item-icon" style="background:linear-gradient(135deg,rgba(63,81,181,.1),rgba(124,77,255,.08))">📊</div>
-          <div class="budget-an-item-text"><div class="budget-an-item-label">Comparaison mois à mois</div><div class="budget-an-item-desc">Comparez deux mois par catégorie</div></div>
-          <span class="budget-an-item-arrow">›</span>
-        </div>
-        <div class="budget-an-item" onclick="app.openBudgetAnalyseModal('cashflow')">
-          <div class="budget-an-item-icon" style="background:linear-gradient(135deg,rgba(0,200,83,.1),rgba(0,150,100,.06))">📊</div>
-          <div class="budget-an-item-text"><div class="budget-an-item-label">Revenus &amp; Cashflow</div><div class="budget-an-item-desc">Historique mensuel revenus et solde</div></div>
-          <span class="budget-an-item-arrow">›</span>
-        </div>
-        <div class="budget-an-item" onclick="app.openBudgetAnalyseModal('analyse')">
-          <div class="budget-an-item-icon" style="background:linear-gradient(135deg,rgba(92,107,192,.1),rgba(63,81,181,.06))">📈</div>
-          <div class="budget-an-item-text"><div class="budget-an-item-label">Analyse détaillée</div><div class="budget-an-item-desc">Répartition par période et catégorie</div></div>
-          <span class="budget-an-item-arrow">›</span>
-        </div>
-      </div>
     </div>
   </div>
 </div>
@@ -722,25 +704,80 @@
   <div class="budget-modal-body"><div class="outil-aide" id="outil-aide-perf"></div><div id="outil-perf-body"></div></div>
 </div>
 
-<!-- MODAL COMPARAISON -->
-<div class="budget-modal-box" id="modal-budget-comp">
+<!-- ANALYSE (Budget) -->
+<div class="budget-modal-box" id="modal-analyse" style="max-width:680px">
   <div class="budget-modal-header">
     <div class="budget-modal-header-left">
-      <div class="budget-modal-icon" style="background:linear-gradient(135deg,rgba(63,81,181,.1),rgba(124,77,255,.08))">📊</div>
-      <div><div class="budget-modal-title">Comparaison mois à mois</div><div class="budget-modal-subtitle">Sélectionnez deux mois à comparer par catégorie</div></div>
+      <div class="budget-modal-icon" style="background:linear-gradient(135deg,rgba(63,81,181,.12),rgba(124,77,255,.1))">🔍</div>
+      <div><div class="budget-modal-title">Analyse</div><div class="budget-modal-subtitle">Choisis l'outil qui répond à ta question</div></div>
     </div>
-    <button class="budget-modal-close" onclick="app.closeBudgetAnalyseModal('modal-budget-comp')">✕</button>
+    <button class="budget-modal-close" onclick="app.closeBilanModal('modal-analyse')">✕</button>
   </div>
   <div class="budget-modal-body">
-    <div class="budget-an-card">
-      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap">
-        <select class="budget-an-select" id="comp-mois-a" onchange="app.refreshComparaison()" style="flex:1"></select>
-        <span style="font-family:'DM Mono',monospace;font-size:.62rem;font-weight:700;color:var(--text-tertiary);padding:.2rem .6rem;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border-color)">VS</span>
-        <select class="budget-an-select" id="comp-mois-b" onchange="app.refreshComparaison()" style="flex:1"></select>
-      </div>
-      <div id="comparaison-container"><div class="empty-state"><div class="empty-state-icon">📊</div><div>Ajoutez des dépenses sur 2 mois différents pour comparer</div></div></div>
+    <div class="outils-grid an-grid">
+      <button class="outil-tile" onclick="app.choisirAnalyse('comparer')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(63,81,181,.12),rgba(124,77,255,.1))">📊</span><span><b>Comparer</b><em>Ce mois-ci, j'ai dépensé plus ou moins que d'habitude ? Où ?</em></span><i>›</i></button>
+      <button class="outil-tile" onclick="app.choisirAnalyse('tendances')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(255,152,0,.14),rgba(230,115,0,.08))">📈</span><span><b>Tendances</b><em>Quelles dépenses augmentent ou baissent ces derniers mois ?</em></span><i>›</i></button>
+      <button class="outil-tile" onclick="app.choisirAnalyse('cashflow')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(0,200,83,.12),rgba(0,150,60,.08))">💶</span><span><b>Revenus &amp; cashflow</b><em>Combien je mets de côté chaque mois ?</em></span><i>›</i></button>
+      <button class="outil-tile" onclick="app.choisirAnalyse('explorer')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(92,107,192,.14),rgba(63,81,181,.08))">🔎</span><span><b>Explorer mes dépenses</b><em>Une période, une catégorie ou un mot : tout le détail.</em></span><i>›</i></button>
+    </div>
+    <p class="outils-note">Chaque outil a un bouton <b>❓ Aide</b> qui explique comment il marche.</p>
+  </div>
+</div>
+
+<div class="budget-modal-box outil-box" id="modal-an-comparer" style="max-width:820px">
+  <div class="budget-modal-header">
+    <div class="budget-modal-header-left">
+      <div class="budget-modal-icon" style="background:linear-gradient(135deg,rgba(63,81,181,.12),rgba(124,77,255,.1))">📊</div>
+      <div><div class="budget-modal-title">Comparer</div><div class="budget-modal-subtitle" id="an-comparer-sub"></div></div>
+    </div>
+    <div class="outil-head-btns">
+      <button class="outil-aide-btn" data-aide-for="comparer" onclick="app.toggleOutilAide('comparer')">❓ Aide</button>
+      <button class="budget-modal-close" onclick="app.closeBilanModal('modal-an-comparer')">✕</button>
     </div>
   </div>
+  <div class="budget-modal-body"><div class="outil-aide" id="outil-aide-comparer"></div><div id="an-comparer-body"></div></div>
+</div>
+
+<div class="budget-modal-box outil-box" id="modal-an-tendances" style="max-width:760px">
+  <div class="budget-modal-header">
+    <div class="budget-modal-header-left">
+      <div class="budget-modal-icon" style="background:linear-gradient(135deg,rgba(255,152,0,.14),rgba(230,115,0,.08))">📈</div>
+      <div><div class="budget-modal-title">Tendances</div><div class="budget-modal-subtitle" id="an-tendances-sub"></div></div>
+    </div>
+    <div class="outil-head-btns">
+      <button class="outil-aide-btn" data-aide-for="tendances" onclick="app.toggleOutilAide('tendances')">❓ Aide</button>
+      <button class="budget-modal-close" onclick="app.closeBilanModal('modal-an-tendances')">✕</button>
+    </div>
+  </div>
+  <div class="budget-modal-body"><div class="outil-aide" id="outil-aide-tendances"></div><div id="an-tendances-body"></div></div>
+</div>
+
+<div class="budget-modal-box outil-box" id="modal-an-cashflow" style="max-width:820px">
+  <div class="budget-modal-header">
+    <div class="budget-modal-header-left">
+      <div class="budget-modal-icon" style="background:linear-gradient(135deg,rgba(0,200,83,.12),rgba(0,150,60,.08))">💶</div>
+      <div><div class="budget-modal-title">Revenus &amp; cashflow</div><div class="budget-modal-subtitle" id="an-cashflow-sub">Ce que tu gardes chaque mois</div></div>
+    </div>
+    <div class="outil-head-btns">
+      <button class="outil-aide-btn" data-aide-for="cashflow" onclick="app.toggleOutilAide('cashflow')">❓ Aide</button>
+      <button class="budget-modal-close" onclick="app.closeBilanModal('modal-an-cashflow')">✕</button>
+    </div>
+  </div>
+  <div class="budget-modal-body"><div class="outil-aide" id="outil-aide-cashflow"></div><div id="an-cashflow-body"></div></div>
+</div>
+
+<div class="budget-modal-box outil-box" id="modal-an-explorer" style="max-width:760px">
+  <div class="budget-modal-header">
+    <div class="budget-modal-header-left">
+      <div class="budget-modal-icon" style="background:linear-gradient(135deg,rgba(92,107,192,.14),rgba(63,81,181,.08))">🔎</div>
+      <div><div class="budget-modal-title">Explorer mes dépenses</div><div class="budget-modal-subtitle" id="an-explorer-sub"></div></div>
+    </div>
+    <div class="outil-head-btns">
+      <button class="outil-aide-btn" data-aide-for="explorer" onclick="app.toggleOutilAide('explorer')">❓ Aide</button>
+      <button class="budget-modal-close" onclick="app.closeBilanModal('modal-an-explorer')">✕</button>
+    </div>
+  </div>
+  <div class="budget-modal-body"><div class="outil-aide" id="outil-aide-explorer"></div><div id="an-explorer-body"></div></div>
 </div>
 
 <!-- MODAL RÈGLE 50/30/20 -->
@@ -803,88 +840,6 @@
       <span style="color:var(--text-secondary);font-size:.85rem">Total mensuel récurrences</span>
       <span class="stat-value" id="recurrences-total" style="font-size:1.2rem">0 €</span>
     </div>
-  </div>
-</div>
-
-<!-- MODAL CASHFLOW / REVENUS -->
-<div class="budget-modal-box" id="modal-budget-cashflow">
-  <div class="budget-modal-header">
-    <div class="budget-modal-header-left">
-      <div class="budget-modal-icon" style="background:linear-gradient(135deg,rgba(0,200,83,.12),rgba(0,150,100,.08))">📊</div>
-      <div><div class="budget-modal-title">Revenus &amp; Cashflow</div><div class="budget-modal-subtitle">Historique mensuel de vos revenus et de votre solde</div></div>
-    </div>
-    <button class="budget-modal-close" onclick="app.closeBudgetAnalyseModal('modal-budget-cashflow')">✕</button>
-  </div>
-  <div class="budget-modal-body">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
-      <div class="hist-rev-switcher">
-        <button onclick="app.setHistRevMode('tableau')" id="modal-hist-rev-btn-tableau" class="hist-rev-mode-btn active" title="Tableau" onclick="app._syncHistRevBtns('tableau')">⊞</button>
-        <button onclick="app.setHistRevMode('timeline')" id="modal-hist-rev-btn-timeline" class="hist-rev-mode-btn" title="Timeline">☰</button>
-        <button onclick="app.setHistRevMode('cards')" id="modal-hist-rev-btn-cards" class="hist-rev-mode-btn" title="Cartes">⊟</button>
-      </div>
-    </div>
-    <div id="modal-historique-revenus-container"></div>
-  </div>
-</div>
-
-<!-- MODAL ANALYSE DÉTAILLÉE -->
-<div class="budget-modal-box" id="modal-budget-analyse">
-  <div class="budget-modal-header">
-    <div class="budget-modal-header-left">
-      <div class="budget-modal-icon" style="background:linear-gradient(135deg,rgba(92,107,192,.12),rgba(63,81,181,.08))">📈</div>
-      <div><div class="budget-modal-title">Analyse détaillée</div><div class="budget-modal-subtitle">Répartition et statistiques — cliquez une catégorie pour le détail</div></div>
-    </div>
-    <button class="budget-modal-close" onclick="app.closeBudgetAnalyseModal('modal-budget-analyse')">✕</button>
-  </div>
-  <div class="budget-modal-body">
-    <!-- Filtres période/catégorie -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.65rem">
-      <div>
-        <div style="font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:.3rem">Période</div>
-        <select class="budget-an-select" id="budget-an-periode" style="width:100%" onchange="app._budgetAnalysePeriodeChange()">
-          <option value="mois" selected>Mois en cours</option>
-          <option value="mois-choisi">Choisir un mois</option>
-          <option value="annee">Année en cours</option>
-          <option value="annee-choisie">Choisir une année</option>
-          <option value="plage">Période de dates</option>
-        </select>
-      </div>
-      <div id="budget-an-periode-mois-wrap" style="display:none">
-        <div style="font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:.3rem">Mois</div>
-        <input type="month" class="budget-an-select" id="budget-an-mois" style="width:100%" onchange="app._renderBudgetAnCats()">
-      </div>
-      <div id="budget-an-periode-annee-wrap" style="display:none">
-        <div style="font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:.3rem">Année</div>
-        <select class="budget-an-select" id="budget-an-annee" style="width:100%" onchange="app._renderBudgetAnCats()"></select>
-      </div>
-    </div>
-    <div id="budget-an-periode-plage-wrap" style="display:none;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.65rem">
-      <div>
-        <div style="font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:.3rem">Du</div>
-        <input type="date" class="budget-an-select" id="budget-an-debut" style="width:100%" onchange="app._renderBudgetAnCats()">
-      </div>
-      <div>
-        <div style="font-family:'DM Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:.3rem">Au</div>
-        <input type="date" class="budget-an-select" id="budget-an-fin" style="width:100%" onchange="app._renderBudgetAnCats()">
-      </div>
-    </div>
-    <!-- Stats résumé -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.65rem;margin-bottom:1rem">
-      <div style="background:var(--bg-card);border-radius:14px;padding:.85rem;border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);text-align:center">
-        <div style="font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:.3rem">Total dépensé</div>
-        <div id="budget-an-total" style="font-family:'Outfit',sans-serif;font-size:1.3rem;font-weight:800;color:var(--text-primary)">0 €</div>
-      </div>
-      <div style="background:var(--bg-card);border-radius:14px;padding:.85rem;border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);text-align:center">
-        <div style="font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:.3rem">Transactions</div>
-        <div id="budget-an-count" style="font-family:'Outfit',sans-serif;font-size:1.3rem;font-weight:800;color:var(--text-primary)">0</div>
-      </div>
-      <div style="background:var(--bg-card);border-radius:14px;padding:.85rem;border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);text-align:center">
-        <div id="budget-an-avg-label" style="font-family:'DM Mono',monospace;font-size:.55rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);margin-bottom:.3rem">Moy. / jour</div>
-        <div id="budget-an-avg" style="font-family:'Outfit',sans-serif;font-size:1.3rem;font-weight:800;color:var(--text-primary)">0 €</div>
-      </div>
-    </div>
-    <div style="font-family:'DM Mono',monospace;font-size:.6rem;text-transform:uppercase;letter-spacing:.12em;color:var(--text-tertiary);margin-bottom:.65rem">Catégories — cliquez pour voir les dépenses</div>
-    <div id="budget-an-cats-list"></div>
   </div>
 </div>
 
@@ -1287,7 +1242,7 @@
 </div>
 
 
-<script src="app.js?v=enh60" defer></script>
+<script src="app.js?v=enh61" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">
