@@ -3587,8 +3587,9 @@ const app = {
         return "decodeURIComponent('" + encodeURIComponent(cat).replace(/'/g, '%27') + "')";
     },
 
-    // Dépense moyenne par catégorie sur les N derniers mois complets où tu as saisi des dépenses
-    _moyennesCategories(nMois = 6) {
+    // Dépense moyenne par catégorie sur les 12 derniers mois complets où tu as saisi des dépenses
+    // (moins s'il n'y a pas encore 12 mois d'historique)
+    _moyennesCategories(nMois = 12) {
         const now = new Date();
         const mois = [];
         for (let i = 1; i <= nMois; i++) mois.push(this._jourLocal(new Date(now.getFullYear(), now.getMonth() - i, 1)).slice(0, 7));
