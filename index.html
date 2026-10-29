@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh58">
+    <link rel="stylesheet" href="app.css?v=enh59">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -233,15 +233,14 @@
 <div class="tab-customize-bar"><button class="tab-customize-btn" onclick="app.openTabCustomizer('dashboard')">⚙️ Personnaliser l'onglet</button><button class="tab-customize-btn tab-help-btn" onclick="app.openHelp('dashboard')" title="Aide">❓ Aide</button></div>
 
 <!-- Hero patrimoine -->
-<div data-card-id="dash-hero" data-tab="dashboard"><div class="card" style="background:linear-gradient(135deg,var(--accent-gradient-start),var(--accent-gradient-end));border:none;padding:2rem 2.5rem;margin-bottom:1.5rem">
-  <div style="font-size:.75rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.75);font-family:DM Mono,monospace;margin-bottom:.4rem">Patrimoine Net · <span id="d-hero-mois"></span></div>
-  <div style="font-family:'Outfit',sans-serif;font-size:3rem;font-weight:800;color:#fff;line-height:1;margin-bottom:1rem" id="d-patrimoine">0 €</div>
-  <div style="display:flex;gap:2.5rem;flex-wrap:wrap;align-items:flex-end">
-    <div>
-      <div style="font-size:.62rem;color:rgba(255,255,255,.65);text-transform:uppercase;font-family:DM Mono,monospace;letter-spacing:.1em">Taux d'épargne · 12 mois</div>
-      <div style="font-weight:800;font-size:2rem;font-family:'Outfit',sans-serif;line-height:1.1" id="d-taux-epargne">—</div>
-      <div style="font-size:.62rem;color:rgba(255,255,255,.55);font-family:DM Mono,monospace" id="d-taux-epargne-sub">moyenne annuelle</div>
-    </div>
+<div data-card-id="dash-hero" data-tab="dashboard"><div class="bl-hero dash-hero">
+  <div class="bl-hero-top"><div class="bl-lbl">Patrimoine net<span id="d-hero-mois"></span></div><span class="bl-pill bl-pill-static" id="d-hero-delta" style="display:none"></span></div>
+  <div class="bl-big" id="d-patrimoine">0 €</div>
+  <div class="bl-sub" id="d-hero-sub"></div>
+  <div class="bl-row bl-tiles dash-tiles">
+    <button type="button" class="bl-tile dash-tile" onclick="app.switchTab('bilan')" title="Voir le bilan"><div class="bl-lbl">Taux d'épargne</div><b id="d-taux-epargne">—</b><div class="dash-tile-sub" id="d-taux-epargne-sub"></div></button>
+    <button type="button" class="bl-tile dash-tile" onclick="app.switchTab('depenses')" title="Voir le budget"><div class="bl-lbl">Ce mois-ci</div><b id="d-hero-solde">—</b><div class="dash-tile-sub" id="d-hero-solde-sub"></div></button>
+    <button type="button" class="bl-tile dash-tile" onclick="app.switchTab('pea')" title="Voir le PEA"><div class="bl-lbl">PEA</div><b id="d-hero-pea">—</b><div class="dash-tile-sub" id="d-hero-pea-sub"></div></button>
   </div>
   <!-- IDs conservés pour compatibilité JS -->
   <span id="d-patrimoine-ch" style="display:none"></span>
@@ -1288,7 +1287,7 @@
 </div>
 
 
-<script src="app.js?v=enh58" defer></script>
+<script src="app.js?v=enh59" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">

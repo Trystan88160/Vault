@@ -2424,3 +2424,20 @@ tbody tr:nth-child(n+5){animation-delay:.14s}
   .outil-box .budget-modal-icon{width:36px;height:36px;flex-shrink:0}
   .outil-box .budget-modal-title{font-size:1rem}
 }
+
+/* ══ Dashboard : carte Patrimoine net au style des autres onglets ══ */
+.dash-hero{padding:1.6rem 1.8rem}
+.dash-hero .bl-big{font-size:3rem;margin-top:.5rem}
+.dash-hero #d-hero-sub{margin-top:.2rem}
+.dash-tiles{margin-top:1.2rem}
+.dash-tile{text-align:left;color:#fff;font-family:inherit;cursor:pointer;transition:background .15s,transform .15s}
+.dash-tile:hover{background:rgba(255,255,255,.2);transform:translateY(-1px)}
+.dash-tile b{font-size:1.5rem}
+.dash-tile-sub{font-size:.72rem;color:rgba(255,255,255,.75);margin-top:.15rem}
+@media (max-width:640px){
+  .dash-hero{padding:1.2rem 1.15rem}
+  .dash-hero .bl-big{font-size:2.3rem}
+  .dash-tile b{font-size:1rem}
+  .dash-tile-sub{font-size:.62rem}
+  .dash-hero .bl-hero-top{flex-wrap:wrap}
+}
