@@ -307,16 +307,11 @@ const app = {
             if (depWrap && !depWrap.contains(e.target)) {
                 document.getElementById('budget-dep-menu')?.classList.remove('open');
             }
-            const anWrap = document.getElementById('budget-an-wrap');
-            if (anWrap && !anWrap.contains(e.target)) {
-                document.getElementById('budget-an-menu')?.classList.remove('open');
-                document.getElementById('budget-an-btn')?.classList.remove('open-state');
-            }
         });
         // Fermeture modales budget avec Échap
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
-                ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils','modal-outil-projection','modal-outil-investir','modal-outil-perf'].forEach(id => {
+                ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils','modal-outil-projection','modal-outil-investir','modal-outil-perf','modal-analyse','modal-an-comparer','modal-an-tendances','modal-an-cashflow','modal-an-explorer'].forEach(id => {
                     document.getElementById(id)?.classList.remove('open');
                 });
                 const ov = document.getElementById('budget-modal-overlay');
@@ -565,7 +560,7 @@ const app = {
             // budget-modal-overlay : contenu = les .budget-modal-box.open
             const openBudgetModal = ['modal-budget-comp','modal-budget-regle','modal-budget-rec',
                 'modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap',
-                'modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils','modal-outil-projection','modal-outil-investir','modal-outil-perf']
+                'modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils','modal-outil-projection','modal-outil-investir','modal-outil-perf','modal-analyse','modal-an-comparer','modal-an-tendances','modal-an-cashflow','modal-an-explorer']
                 .map(id => document.getElementById(id))
                 .find(el => el?.classList.contains('open'));
             this._budgetMouseDownInside = !!(openBudgetModal && openBudgetModal.contains(e.target));
@@ -1497,7 +1492,7 @@ const app = {
         });
         this._currentTab = realName;
         if (realName === 'dashboard') { this.refreshDashboard(); this.refreshHeatmap(); }
-        if (realName === 'depenses') { this.analyseDepenses(); this.refreshRegle503020(); this.refreshComparaison(); this.refreshRevenus(); this.refreshHistoriqueRevenus(); this.refreshPointage(); }
+        if (realName === 'depenses') { this.analyseDepenses(); this.refreshRegle503020(); this.refreshRevenus(); this.refreshPointage(); }
         if (realName === 'bilan') { this.refreshNotes(); this.refreshBilanAnnuel(); }
         if (realName === 'patrimoine') { this.afficherPatrimoine(); this.refreshStatsPatrimoine(); }
         if (realName === 'pea') { this.refreshLignesPEA(); }
@@ -1565,119 +1560,8 @@ const app = {
     heatmapClick(moisIndex, annee) {
         const moisStr = `${annee}-${String(moisIndex + 1).padStart(2,'0')}`;
         this.switchTab('depenses');
-        const sel = document.getElementById('analyse-periode');
-        if (sel) { sel.value = 'mois-choisi'; this.toggleAnalyseFilters(); }
-        const inp = document.getElementById('analyse-mois');
-        if (inp) { inp.value = moisStr; this.analyseDepenses(); }
-    },
-
-    initComparaisonSelects() {
-        const moisDispo = [...new Set(this.data.depenses.map(d => d.date.slice(0,7)))].sort().reverse();
-        if (moisDispo.length === 0) return;
-
-        const defaults = [moisDispo[1] || moisDispo[0], moisDispo[0]];
-        ['comp-mois-a','comp-mois-b'].forEach((id, i) => {
-            const sel = document.getElementById(id);
-            if (!sel) return;
-            const current = sel.value;
-            const defaultVal = current || defaults[i];
-            sel.innerHTML = moisDispo.map(m => `<option value="${m}" ${m === defaultVal ? 'selected' : ''}>${m}</option>`).join('');
-        });
-    },
-
-    refreshComparaison() {
-        this.initComparaisonSelects();
-        const moisA = document.getElementById('comp-mois-a')?.value;
-        const moisB = document.getElementById('comp-mois-b')?.value;
-        const container = document.getElementById('comparaison-container');
-        if (!container) return;
-
-        if (!moisA || !moisB || moisA === moisB) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><div>Sélectionne deux mois différents</div></div>';
-            return;
-        }
-        const exclus = this.data.categoriesEpargne || ['ÉPARGNE'];
-        const sansEpargne = d => !exclus.some(e => d.categorie.toUpperCase().includes(e.toUpperCase()));
-        const depA = this.data.depenses.filter(d => d.date.startsWith(moisA) && sansEpargne(d));
-        const depB = this.data.depenses.filter(d => d.date.startsWith(moisB) && sansEpargne(d));
-        if (depA.length === 0 && depB.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><div>Pas de données sur ces mois</div></div>';
-            return;
-        }
-        const totA = depA.reduce((s, d) => s + d.montant, 0);
-        const totB = depB.reduce((s, d) => s + d.montant, 0);
-        const cats = [...new Set([...depA, ...depB].map(d => d.categorie))].sort((a,b) => {
-            const va = depA.filter(d=>d.categorie===a).reduce((s,d)=>s+d.montant,0);
-            const vb = depB.filter(d=>d.categorie===b).reduce((s,d)=>s+d.montant,0);
-            return Math.max(vb,0) - Math.max(va,0);
-        });
-
-        const diffTotal = totB - totA;
-        const pctTotal = totA > 0 ? ((diffTotal / totA) * 100).toFixed(1) : '—';
-        const signTotal = diffTotal >= 0 ? '+' : '';
-        const colorTotal = diffTotal > 0 ? 'var(--danger)' : diffTotal < 0 ? 'var(--success)' : 'var(--text-secondary)';
-
-        const fmt = m => { const [y,mo] = m.split('-'); return new Date(y,mo-1).toLocaleDateString('fr-FR',{month:'short',year:'numeric'}); };
-
-        const badge = (diff) => {
-            if (diff === 0) return `<span style="background:var(--bg-secondary);color:var(--text-tertiary);font-family:'DM Mono',monospace;font-size:.65rem;padding:.18rem .55rem;border-radius:100px;font-weight:700">= 0 €</span>`;
-            const color = diff > 0 ? 'rgba(244,67,54,.12)' : 'rgba(0,200,83,.12)';
-            const textColor = diff > 0 ? 'var(--danger)' : 'var(--success)';
-            const sign = diff > 0 ? '+' : '';
-            return `<span style="background:${color};color:${textColor};font-family:'DM Mono',monospace;font-size:.65rem;padding:.18rem .55rem;border-radius:100px;font-weight:700">${sign}${this.formatCurrency(Math.abs(diff))}</span>`;
-        };
-
-        const rows = cats.map(cat => {
-            const a = depA.filter(d => d.categorie === cat).reduce((s, d) => s + d.montant, 0);
-            const b = depB.filter(d => d.categorie === cat).reduce((s, d) => s + d.montant, 0);
-            const diff = b - a;
-            return `<tr>
-                <td style="padding:.55rem .6rem;border-bottom:1px solid var(--border-color);font-size:.78rem;font-weight:500;color:var(--text-secondary)">${cat}</td>
-                <td style="padding:.55rem .6rem;border-bottom:1px solid var(--border-color);font-family:'DM Mono',monospace;font-size:.75rem;text-align:right;color:var(--text-primary)">${a > 0 ? this.formatCurrency(a) : '<span style="color:var(--text-tertiary)">—</span>'}</td>
-                <td style="padding:.55rem .6rem;border-bottom:1px solid var(--border-color);font-family:'DM Mono',monospace;font-size:.75rem;text-align:right;color:var(--text-primary)">${b > 0 ? this.formatCurrency(b) : '<span style="color:var(--text-tertiary)">—</span>'}</td>
-                <td style="padding:.55rem .6rem;border-bottom:1px solid var(--border-color);text-align:right">${badge(diff)}</td>
-            </tr>`;
-        }).join('');
-
-        container.innerHTML = `
-            <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:.6rem;align-items:center;margin-bottom:1.5rem">
-                <div style="background:var(--bg-secondary);border-radius:12px;padding:.65rem .85rem;box-shadow:inset 2px 2px 6px var(--shadow-light),inset -2px -2px 6px var(--shadow-dark)">
-                    <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);margin-bottom:.2rem">${fmt(moisA)}</div>
-                    <div style="font-family:'Outfit',sans-serif;font-size:1.25rem;font-weight:700;color:var(--accent-primary)">${this.formatCurrency(totA)}</div>
-                    <div style="font-size:.62rem;color:var(--text-tertiary);margin-top:.1rem">${depA.length} dépenses</div>
-                </div>
-                <div style="text-align:center">
-                    <div style="font-family:'Outfit',sans-serif;font-size:1.4rem;font-weight:800;color:${colorTotal};line-height:1">${signTotal}${pctTotal}%</div>
-                    <div style="font-family:'DM Mono',monospace;font-size:.62rem;font-weight:600;color:${colorTotal};margin-top:.15rem">${signTotal}${this.formatCurrency(Math.abs(diffTotal))}</div>
-                </div>
-                <div style="background:var(--bg-secondary);border-radius:12px;padding:.65rem .85rem;box-shadow:inset 2px 2px 6px var(--shadow-light),inset -2px -2px 6px var(--shadow-dark)">
-                    <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);margin-bottom:.2rem">${fmt(moisB)}</div>
-                    <div style="font-family:'Outfit',sans-serif;font-size:1.25rem;font-weight:700;color:var(--text-primary)">${this.formatCurrency(totB)}</div>
-                    <div style="font-size:.62rem;color:var(--text-tertiary);margin-top:.1rem">${depB.length} dépenses</div>
-                </div>
-            </div>
-            <div style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--text-tertiary);font-weight:600;margin-bottom:.5rem">Détail par catégorie</div>
-            <div class="table-container">
-            <table style="width:100%;border-collapse:collapse">
-                <thead>
-                    <tr>
-                        <th style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);font-weight:600;padding:.3rem .6rem;border-bottom:2px solid var(--border-color);text-align:left">Catégorie</th>
-                        <th style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);font-weight:600;padding:.3rem .6rem;border-bottom:2px solid var(--border-color);text-align:right">${fmt(moisA)}</th>
-                        <th style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);font-weight:600;padding:.3rem .6rem;border-bottom:2px solid var(--border-color);text-align:right">${fmt(moisB)}</th>
-                        <th style="font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);font-weight:600;padding:.3rem .6rem;border-bottom:2px solid var(--border-color);text-align:right">Écart</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-                <tfoot>
-                    <tr>
-                        <td style="padding:.65rem .6rem;font-size:.8rem;font-weight:700;color:var(--text-primary);border-top:2px solid var(--border-color)">Total</td>
-                        <td style="padding:.65rem .6rem;font-family:'DM Mono',monospace;font-size:.78rem;font-weight:700;text-align:right;color:var(--accent-primary);border-top:2px solid var(--border-color)">${this.formatCurrency(totA)}</td>
-                        <td style="padding:.65rem .6rem;font-family:'DM Mono',monospace;font-size:.78rem;font-weight:700;text-align:right;color:var(--text-primary);border-top:2px solid var(--border-color)">${this.formatCurrency(totB)}</td>
-                        <td style="padding:.65rem .6rem;text-align:right;border-top:2px solid var(--border-color)">${badge(diffTotal)}</td>
-                    </tr>
-                </tfoot>
-            </table>
-            </div>`;
+        this._anExp = { per: 'm:' + moisStr, du: '', au: '', q: '', cat: null };
+        this.choisirAnalyse('explorer');
     },
 
     _simHorizon: 10,
@@ -2236,12 +2120,6 @@ const app = {
     <strong>À analyser :</strong> les catégories en rouge ont dépassé leur budget. Clique sur la carte pour la déplier.</p>
   </div>
 
-  <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--text-tertiary)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--text-tertiary);font-weight:700;margin-bottom:.25rem">📊 Comparaison mois à mois</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> deux mois côte à côte pour comparer tes dépenses par catégorie.<br>
-    <strong>Utilité :</strong> détecte les catégories qui dérivent dans le temps. Clique sur le titre pour déplier.</p>
-  </div>
-
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--warning)">
     <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--warning);font-weight:700;margin-bottom:.25rem">⚖️ Règle 50 / 30 / 20</div>
     <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> tes dépenses du mois ventilées en 3 compartiments : Besoins (≤50%), Envies (≤30%), Épargne (≥20%).<br>
@@ -2256,9 +2134,13 @@ const app = {
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--success)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--success);font-weight:700;margin-bottom:.25rem">🔍 Analyse des dépenses</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> tableau détaillé avec total, moyenne mensuelle et % du total par catégorie sur la période choisie (mois, année, plage de dates).<br>
-    <strong>Utilité :</strong> repère les catégories qui représentent le plus dans ton budget sur le long terme.</p>
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--success);font-weight:700;margin-bottom:.25rem">🔍 Analyse</div>
+    <p style="font-size:.79rem;margin:0">Le bouton <strong>🔍 Analyse</strong> ouvre une fenêtre avec 4 outils :<br>
+    <strong>📊 Comparer :</strong> un mois face à ta moyenne des 12 mois, au mois d'avant ou à un autre mois.<br>
+    <strong>📈 Tendances :</strong> ce qui augmente ou baisse sur tes 3 derniers mois.<br>
+    <strong>💶 Revenus &amp; cashflow :</strong> ce que tu mets de côté chaque mois, sur 12 ou 24 mois.<br>
+    <strong>🔎 Explorer :</strong> tes dépenses sur une période, par catégorie ou par mot-clé.<br>
+    Chaque outil a son bouton <strong>❓ Aide</strong>.</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-secondary)">
@@ -2267,13 +2149,6 @@ const app = {
     <strong>Filtres :</strong> par mois, par catégorie, ou par mot-clé dans la note (ex : "Netflix", "Carrefour").<br>
     <strong>🕐 Ordre :</strong> bascule entre "Récent → Ancien" (défaut) et "Ancien → Récent" d'un clic.<br>
     <strong>Astuce :</strong> clique ✕ pour effacer tous les filtres d'un coup.</p>
-  </div>
-
-  <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--text-tertiary)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--text-tertiary);font-weight:700;margin-bottom:.25rem">📊 Historique Revenus</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> tableau des 24 derniers mois avec revenus, dépenses, cashflow et taux d'épargne mois par mois.<br>
-    <strong>Utilité :</strong> suivi de l'évolution de ta santé financière dans le temps, utilisable comme justificatif.<br>
-    <strong>Astuce :</strong> les mois avec "(param.)" indiquent que le salaire paramétré a été utilisé comme fallback.</p>
   </div>
 
 </div>`
@@ -2454,192 +2329,6 @@ const app = {
         if (arrow) arrow.style.transform = isOpen ? 'rotate(90deg)' : '';
     },
 
-    setHistRevMode(mode) {
-        this.data.parametres = this.data.parametres || {};
-        this.data.parametres.histRevMode = mode;
-        this.save();
-        ['tableau','timeline','cards'].forEach(m => {
-            const btn = document.getElementById('hist-rev-btn-' + m);
-            if (btn) btn.classList.toggle('active', m === mode);
-        });
-        this.refreshHistoriqueRevenus();
-    },
-
-    refreshHistoriqueRevenus() {
-        const container = document.getElementById('historique-revenus-container');
-        if (!container) return;
-        const mode = (this.data.parametres && this.data.parametres.histRevMode) || 'tableau';
-        // sync buttons
-        ['tableau','timeline','cards'].forEach(m => {
-            const btn = document.getElementById('hist-rev-btn-' + m);
-            if (btn) btn.classList.toggle('active', m === mode);
-        });
-        const now = new Date();
-        const moisSet = new Set([
-            ...this.data.depenses.map(d => d.date.slice(0,7)),
-            ...this.data.revenus.map(r => r.mois || r.date.slice(0,7))
-        ]);
-        const moisList = [...moisSet].sort().reverse().slice(0, 24);
-        if (moisList.length === 0) {
-            container.innerHTML = '<div class="empty-state" style="padding:1.5rem"><div class="empty-state-icon">📊</div><div>Aucune donnée disponible</div></div>';
-            return;
-        }
-        const rows = moisList.map(mois => {
-            const [y, m] = mois.split('-').map(Number);
-            const year = y, month = m - 1;
-            const { total: revenus, source } = this.getRevenusMois(year, month);
-            const depEffectives = this.getDepEffectives(year, month);
-            const cashflow = revenus > 0 ? revenus - depEffectives : null;
-            const tauxEp = revenus > 0 ? ((revenus - depEffectives) / revenus * 100) : null;
-            const label = new Date(year, month, 1).toLocaleDateString('fr-FR', { month:'long', year:'numeric' });
-            const labelShort = new Date(year, month, 1).toLocaleDateString('fr-FR', { month:'short', year:'numeric' });
-            const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
-            const flagColor = tauxEp === null ? 'var(--text-tertiary)' : tauxEp >= 20 ? 'var(--success)' : tauxEp >= 10 ? 'var(--warning,#f59e0b)' : 'var(--danger)';
-            const detailRevenus = this.data.revenus.filter(r => (r.mois || r.date.slice(0,7)) === mois).sort((a,b) => b.date.localeCompare(a.date));
-            return { mois, label, labelShort, revenus, depEffectives, cashflow, tauxEp, source, isCurrentMonth, flagColor, detailRevenus };
-        });
-        if (mode === 'tableau')  container.innerHTML = this._histRevTableau(rows);
-        if (mode === 'timeline') container.innerHTML = this._histRevTimeline(rows);
-        if (mode === 'cards')    container.innerHTML = this._histRevCards(rows);
-    },
-
-    _histRevDetailList(revs) {
-        if (!revs || revs.length === 0) return '<div style="color:var(--text-tertiary);font-size:.72rem;padding:.4rem 0 .2rem">Aucun revenu saisi ce mois</div>';
-        return revs.map(r => `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:.3rem 0;border-bottom:1px solid var(--border-color)">
-                <div>
-                    <span style="font-size:.72rem;font-weight:600;color:var(--text-primary)">${r.type || '—'}</span>
-                    ${r.note ? `<span style="font-size:.67rem;color:var(--text-tertiary);margin-left:.4rem">${app._esc(r.note)}</span>` : ''}
-                    <div style="font-size:.63rem;color:var(--text-tertiary);font-family:'DM Mono',monospace">${r.date}</div>
-                </div>
-                <div style="display:flex;align-items:center;gap:.5rem">
-                    <span style="font-size:.82rem;font-weight:700;color:var(--success)">+${this.formatCurrency(r.montant)}</span>
-                    <button onclick="app.supprimerRevenu('${app._esc(String(r.id))}')" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:.65rem;padding:.1rem .25rem;opacity:.6" title="Supprimer">✕</button>
-                </div>
-            </div>`).join('');
-    },
-
-    _histRevTableau(rows) {
-        return `<div class="table-container">
-            <table class="table" style="font-size:.8rem">
-                <thead><tr>
-                    <th>Mois</th>
-                    <th style="text-align:right">Revenus</th>
-                    <th style="text-align:right">Dépenses</th>
-                    <th style="text-align:right">Cashflow</th>
-                    <th style="text-align:right">Taux épargne</th>
-                    <th style="width:32px"></th>
-                </tr></thead>
-                <tbody>
-                ${rows.map(r => `
-                    <tr class="hist-rev-row" style="${r.isCurrentMonth ? 'background:rgba(var(--heatmap-rgb),.05);' : ''}" onclick="app._toggleHistRevDetail('${r.mois}')">
-                        <td style="font-family:'DM Mono',monospace;font-size:.72rem;font-weight:${r.isCurrentMonth?'700':'400'}">
-                            ${r.labelShort}${r.isCurrentMonth ? ' <span style="font-size:.58rem;color:var(--warning)">●</span>' : ''}
-                        </td>
-                        <td style="text-align:right;color:var(--success);font-weight:600">
-                            ${r.revenus > 0 ? this.formatCurrency(r.revenus) : '<span style="color:var(--text-tertiary)">—</span>'}
-                            ${r.source === 'salaire' ? '<span style="font-size:.55rem;color:var(--text-tertiary)"> param.</span>' : ''}
-                            ${r.detailRevenus.length > 0 ? `<span style="font-size:.6rem;color:var(--accent-primary);margin-left:.3rem">${r.detailRevenus.length}</span>` : ''}
-                        </td>
-                        <td style="text-align:right">${this.formatCurrency(r.depEffectives)}</td>
-                        <td style="text-align:right;font-weight:700;color:${r.cashflow===null?'var(--text-tertiary)':r.cashflow>=0?'var(--success)':'var(--danger)'}">
-                            ${r.cashflow !== null ? (r.cashflow >= 0 ? '+' : '') + this.formatCurrency(r.cashflow) : '—'}
-                        </td>
-                        <td style="text-align:right;font-weight:700;color:${r.flagColor}">
-                            ${r.tauxEp !== null ? r.tauxEp.toFixed(0) + ' %' : '—'}
-                        </td>
-                        <td style="text-align:center;color:var(--text-tertiary);font-size:.7rem" id="hist-rev-arrow-${r.mois}">›</td>
-                    </tr>
-                    <tr id="hist-rev-detail-${r.mois}" style="display:none">
-                        <td colspan="6" style="padding:.5rem 1rem .75rem 2rem;background:var(--bg-secondary)">
-                            <div style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);margin-bottom:.35rem">Revenus saisis</div>
-                            ${this._histRevDetailList(r.detailRevenus)}
-                        </td>
-                    </tr>`).join('')}
-                </tbody>
-            </table>
-        </div>
-        <div style="margin-top:.6rem;font-size:.65rem;color:var(--text-tertiary);font-family:'DM Mono',monospace">Cliquez sur un mois pour voir le détail des revenus</div>`;
-    },
-
-    _toggleHistRevDetail(mois) {
-        const row = document.getElementById('hist-rev-detail-' + mois);
-        const arrow = document.getElementById('hist-rev-arrow-' + mois);
-        if (!row) return;
-        const open = row.style.display === 'none' || row.style.display === '';
-        row.style.display = open ? 'table-row' : 'none';
-        if (arrow) arrow.textContent = open ? '↓' : '›';
-    },
-
-    _histRevTimeline(rows) {
-        return `<div class="hist-rev-timeline">
-        ${rows.map((r, i) => {
-            const barW = r.revenus > 0 ? Math.min(100, (r.depEffectives / r.revenus) * 100) : 0;
-            const barColor = r.cashflow === null ? 'var(--text-tertiary)' : r.cashflow >= 0 ? 'var(--success)' : 'var(--danger)';
-            return `<div class="hist-rev-tl-item">
-                <div class="hist-rev-tl-dot" style="background:${r.isCurrentMonth ? 'var(--accent-primary)' : 'var(--border-color)'}"></div>
-                <div class="hist-rev-tl-content">
-                    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.35rem;flex-wrap:wrap;gap:.3rem">
-                        <div style="font-size:.8rem;font-weight:700;color:var(--text-primary);text-transform:capitalize">
-                            ${r.label}${r.isCurrentMonth ? ' <span style="font-size:.6rem;color:var(--accent-primary);font-weight:400">en cours</span>' : ''}
-                        </div>
-                        <div style="display:flex;gap:1rem;align-items:baseline">
-                            <span style="font-size:.72rem;color:var(--success);font-weight:600">${r.revenus > 0 ? '+' + this.formatCurrency(r.revenus) : '—'}</span>
-                            <span style="font-size:.72rem;color:var(--danger)">-${this.formatCurrency(r.depEffectives)}</span>
-                            <span style="font-size:.85rem;font-weight:800;color:${barColor}">${r.cashflow !== null ? (r.cashflow >= 0 ? '+' : '') + this.formatCurrency(r.cashflow) : '—'}</span>
-                        </div>
-                    </div>
-                    ${r.revenus > 0 ? `<div style="height:4px;background:var(--bg-secondary);border-radius:2px;overflow:hidden;margin-bottom:.5rem">
-                        <div style="height:100%;width:${barW}%;background:${barColor};border-radius:2px"></div>
-                    </div>` : ''}
-                    ${r.detailRevenus.length > 0 ? `
-                    <details class="hist-rev-details">
-                        <summary style="font-size:.68rem;color:var(--accent-primary);cursor:pointer;font-family:'DM Mono',monospace;list-style:none;padding:.2rem 0">
-                            ▸ ${r.detailRevenus.length} revenu${r.detailRevenus.length > 1 ? 's' : ''} saisi${r.detailRevenus.length > 1 ? 's' : ''}
-                        </summary>
-                        <div style="margin-top:.35rem;padding-left:.5rem;border-left:2px solid var(--accent-primary)">
-                            ${this._histRevDetailList(r.detailRevenus)}
-                        </div>
-                    </details>` : `<div style="font-size:.67rem;color:var(--text-tertiary);font-family:'DM Mono',monospace">Aucun revenu saisi${r.source === 'salaire' ? ' — salaire paramétré utilisé' : ''}</div>`}
-                </div>
-            </div>`;
-        }).join('')}
-        </div>`;
-    },
-
-    _histRevCards(rows) {
-        return `<div class="hist-rev-cards-grid">
-        ${rows.map(r => {
-            const cashColor = r.cashflow === null ? 'var(--text-tertiary)' : r.cashflow >= 0 ? 'var(--success)' : 'var(--danger)';
-            const cashSign  = r.cashflow !== null && r.cashflow >= 0 ? '+' : '';
-            return `<div class="hist-rev-card${r.isCurrentMonth ? ' hist-rev-card-current' : ''}">
-                <div style="font-size:.65rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em;color:var(--text-tertiary);margin-bottom:.3rem">${r.labelShort}</div>
-                <div style="font-size:1.4rem;font-weight:800;letter-spacing:-.04em;color:${cashColor};line-height:1.1;margin-bottom:.4rem">
-                    ${r.cashflow !== null ? cashSign + this.formatCurrency(r.cashflow) : '—'}
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem .75rem;font-size:.68rem;margin-bottom:.5rem">
-                    <div style="color:var(--text-tertiary)">Revenus</div>
-                    <div style="text-align:right;color:var(--success);font-weight:600">${r.revenus > 0 ? this.formatCurrency(r.revenus) : '—'}</div>
-                    <div style="color:var(--text-tertiary)">Dépenses</div>
-                    <div style="text-align:right">${this.formatCurrency(r.depEffectives)}</div>
-                    <div style="color:var(--text-tertiary)">Taux ép.</div>
-                    <div style="text-align:right;font-weight:700;color:${r.flagColor}">${r.tauxEp !== null ? r.tauxEp.toFixed(0) + ' %' : '—'}</div>
-                </div>
-                ${r.detailRevenus.length > 0 ? `
-                <details class="hist-rev-details">
-                    <summary style="font-size:.65rem;color:var(--accent-primary);cursor:pointer;font-family:'DM Mono',monospace;list-style:none">
-                        ▸ ${r.detailRevenus.length} revenu${r.detailRevenus.length > 1 ? 's' : ''}
-                    </summary>
-                    <div style="margin-top:.35rem">
-                        ${this._histRevDetailList(r.detailRevenus)}
-                    </div>
-                </details>` : `<div style="font-size:.63rem;color:var(--text-tertiary);font-family:'DM Mono',monospace">${r.source === 'salaire' ? 'Salaire paramétré' : 'Aucun revenu saisi'}</div>`}
-            </div>`;
-        }).join('')}
-        </div>`;
-    },
-
-
     getTauxEpargne12Mois() {
         const now = new Date();
         const exclus = this.data.categoriesEpargne || ['ÉPARGNE'];
@@ -2726,7 +2415,6 @@ const app = {
         if (trigger2) trigger2.style.boxShadow = '8px 8px 16px var(--shadow-light), -8px -8px 16px var(--shadow-dark), inset 0 -3px 0 var(--accent-primary)';
         tripanel.style.display = 'block';
 
-        if (panel === 'comp')  this.refreshComparaison();
         if (panel === 'regle') this.refreshRegle503020();
     },
 
@@ -4424,9 +4112,9 @@ const app = {
         this.refresh();
         this.updateBudgetsUI();
         this.refreshCharts();
-        this.refreshHistoriqueRevenus?.();
         this._refreshBudgetHeroAndCats?.();
         if (this._catDetailCat && document.getElementById('modal-cat-detail')?.classList.contains('open')) this._renderCatDetail();
+        this._anRafraichir?.();
     },
 
     ouvrirEditRevenu(id) {
@@ -4668,7 +4356,6 @@ const app = {
         this.save();
         this._refreshBudgetHeroAndCats?.();
         this.refreshRevenus();
-        this.refreshHistoriqueRevenus();
         this.refreshDashboard();
         this.refreshPointage();
         document.getElementById('rev-montant').value = '';
@@ -4684,7 +4371,6 @@ const app = {
             this.save();
             this._refreshBudgetHeroAndCats?.();
             this.refreshRevenus();
-            this.refreshHistoriqueRevenus();
             this.refreshDashboard();
             this.refreshPointage();
             this.notify('Revenu supprimé', 'success');
@@ -5250,6 +4936,34 @@ const app = {
     },
 
     _outilAide: {
+        comparer: `
+<p><b>À quoi ça sert :</b> savoir si tu as dépensé plus ou moins que d'habitude un mois donné, et dans quelles catégories.</p>
+<ol>
+  <li>Choisis le mois avec <b>‹ ›</b> (par défaut : le dernier mois complet).</li>
+  <li>Choisis à quoi le comparer : <b>ta moyenne</b> des 12 mois d'avant (le plus parlant), le <b>mois d'avant</b>, ou <b>un autre mois</b>.</li>
+</ol>
+<p><b>Résultat :</b> l'écart total et une phrase qui dit d'où il vient. Les catégories sont triées par plus gros écart : vert = moins que d'habitude, rouge = plus.</p>
+<p class="outil-aide-limite">Pour le mois en cours, la comparaison n'est pas finie : il reste des jours à dépenser. Les catégories marquées épargne ne sont pas comptées.</p>`,
+        tendances: `
+<p><b>À quoi ça sert :</b> repérer ce qui augmente ou baisse doucement, sans regarder mois par mois.</p>
+<p><b>Comment :</b> pour chaque catégorie, la moyenne de tes <b>3 derniers mois complets</b> est comparée à celle des <b>mois d'avant</b> (jusqu'à 9). Un écart d'au moins 15 € et 20 % compte comme une hausse ou une baisse ; en dessous, c'est stable.</p>
+<p><b>ⓘ Les notes :</b> Vault signale quand un écart vient surtout d'<b>une seule grosse dépense</b>, ou quand la même période de l'an dernier était aussi haute (<b>saisonnier</b> : il faut alors 2 ans d'historique).</p>
+<p class="outil-aide-limite">Mini-graphiques : les 12 derniers mois complets, les 3 plus récents en violet. Il faut au moins 6 mois d'historique.</p>`,
+        cashflow: `
+<p><b>À quoi ça sert :</b> voir combien tu mets de côté chaque mois (revenus − dépenses) et si c'est régulier.</p>
+<p><b>Le graphique :</b> une barre par mois. Vert = bon mois, orange = moins de 10 % de tes revenus gardés, rouge = tu as dépensé plus que tes revenus. La ligne pointillée est ta moyenne.</p>
+<p><b>Les chiffres du haut</b> ne comptent que les mois complets : le mois en cours (en clair) n'est pas fini.</p>
+<p><b>Le tableau</b> (à déplier) donne le détail. Clique un mois pour le comparer à ta moyenne.</p>
+<p class="outil-aide-limite">Si aucun revenu n'est saisi pour un mois, ton salaire des paramètres est utilisé (marqué « est. »). Les virements vers l'épargne ne comptent pas comme des dépenses.</p>`,
+        explorer: `
+<p><b>À quoi ça sert :</b> fouiller tes dépenses sur la période de ton choix.</p>
+<ol>
+  <li>Choisis la <b>période</b> : ce mois, le mois dernier, 3 ou 12 mois complets, l'année, ou des dates précises.</li>
+  <li>Tu vois le total, la moyenne et la répartition par catégorie.</li>
+  <li><b>Clique une catégorie</b> : son évolution sur 12 mois face à ton budget, puis la liste de ses dépenses.</li>
+  <li>La <b>recherche</b> trouve une dépense par son libellé ou sa catégorie (« kart », « airbnb »…), sans tenir compte des accents.</li>
+</ol>
+<p class="outil-aide-limite">Clique une dépense pour la modifier ou la supprimer : l'outil se met à jour tout seul.</p>`,
         projection: `
 <p><b>À quoi ça sert :</b> voir ce que pourrait valoir ton PEA plus tard, ou combien verser chaque mois pour atteindre un montant.</p>
 <p><b>« Combien j'aurai ? »</b></p>
@@ -9783,39 +9497,16 @@ const app = {
         document.getElementById('budget-dep-menu')?.classList.toggle('open');
     },
 
-    toggleBudgetAnalyseMenu() {
-        const menu = document.getElementById('budget-an-menu');
-        const btn = document.getElementById('budget-an-btn');
-        if (!menu || !btn) return;
-        const open = menu.classList.toggle('open');
-        btn.classList.toggle('open-state', open);
-    },
-
     openBudgetAnalyseModal(type) {
         // Ferme les menus déroulants (Analyse et « ⋯ »)
         document.getElementById('budget-dep-menu')?.classList.remove('open');
-        document.getElementById('budget-an-menu')?.classList.remove('open');
-        document.getElementById('budget-an-btn')?.classList.remove('open-state');
         // Rafraîchit le contenu selon le type
-        if (type === 'comp') this.refreshComparaison();
         if (type === 'regle') this.refreshRegle503020();
         if (type === 'rec') this.refreshRecurrences();
-        if (type === 'cashflow') this._refreshBudgetCashflowModal();
-        if (type === 'analyse') this._renderBudgetAnCats();
         // Ouvre overlay + modal
         document.getElementById('budget-modal-overlay')?.classList.add('open');
         document.getElementById('modal-budget-' + type)?.classList.add('open');
         document.body.style.overflow = 'hidden';
-    },
-
-    _refreshBudgetCashflowModal() {
-        // Redirige refreshHistoriqueRevenus vers le container de la modal
-        const realContainer = document.getElementById('historique-revenus-container');
-        const modalContainer = document.getElementById('modal-historique-revenus-container');
-        this.refreshHistoriqueRevenus();
-        if (realContainer && modalContainer) {
-            modalContainer.innerHTML = realContainer.innerHTML;
-        }
     },
 
     openBudgetHistoriqueComplet() {
@@ -9899,7 +9590,7 @@ const app = {
         if (e.target.id !== 'budget-modal-overlay') return;
         // Fix : ignore si le mousedown a commencé à l'intérieur d'une modal ouverte
         if (this._budgetMouseDownInside) return;
-        ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils','modal-outil-projection','modal-outil-investir','modal-outil-perf'].forEach(id => {
+        ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils','modal-outil-projection','modal-outil-investir','modal-outil-perf','modal-analyse','modal-an-comparer','modal-an-tendances','modal-an-cashflow','modal-an-explorer'].forEach(id => {
             document.getElementById(id)?.classList.remove('open');
         });
         document.getElementById('budget-modal-overlay')?.classList.remove('open');
@@ -10142,173 +9833,342 @@ const app = {
         }
     },
 
-    /* Analyse détaillée — catégories dépliables */
-    _budgetAnalysePeriodeChange() {
-        const val = document.getElementById('budget-an-periode')?.value;
-        const moisWrap  = document.getElementById('budget-an-periode-mois-wrap');
-        const anneeWrap = document.getElementById('budget-an-periode-annee-wrap');
-        const plageWrap = document.getElementById('budget-an-periode-plage-wrap');
-        if (moisWrap)  moisWrap.style.display  = val === 'mois-choisi'   ? 'block' : 'none';
-        if (anneeWrap) anneeWrap.style.display  = val === 'annee-choisie' ? 'block' : 'none';
-        if (plageWrap) plageWrap.style.display  = val === 'plage'         ? 'grid'  : 'none';
 
-        // Peupler le select des années
-        if (val === 'annee-choisie') {
-            const sel = document.getElementById('budget-an-annee');
-            if (sel && sel.options.length === 0) {
-                const years = [...new Set(this.data.depenses.map(d => new Date(d.date).getFullYear()))].sort().reverse();
-                const now = new Date().getFullYear();
-                if (!years.includes(now)) years.unshift(now);
-                sel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
-            }
-        }
-        // Dates par défaut pour la plage
-        if (val === 'plage') {
-            const debutEl = document.getElementById('budget-an-debut');
-            const finEl   = document.getElementById('budget-an-fin');
-            const now = new Date();
-            if (finEl   && !finEl.value)   finEl.value   = app._jourLocal(now);
-            if (debutEl && !debutEl.value) {
-                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-                debutEl.value = app._jourLocal(firstDay);
-            }
-        }
-        this._renderBudgetAnCats();
+    /* ── Analyse (onglet Budget) : Comparer · Tendances · Revenus & cashflow · Explorer ── */
+    openAnalyse() {
+        document.getElementById('budget-dep-menu')?.classList.remove('open');
+        this._blOuvrirModal('modal-analyse');
+    },
+    choisirAnalyse(outil) {
+        this.closeBilanModal('modal-analyse');
+        this._anRendre(outil);
+        this._blOuvrirModal('modal-an-' + outil);
+    },
+    _anRendre(outil) {
+        ({ comparer: () => this._renderComparer(), tendances: () => this._renderTendances(),
+           cashflow: () => this._renderCashflow(), explorer: () => this._renderExplorer() })[outil]?.();
+    },
+    // Après une modification de dépense, les outils ouverts se mettent à jour
+    _anRafraichir() {
+        ['comparer', 'tendances', 'cashflow', 'explorer'].forEach(o => {
+            if (document.getElementById('modal-an-' + o)?.classList.contains('open')) this._anRendre(o);
+        });
     },
 
-    _renderBudgetAnCats() {
-        const container = document.getElementById('budget-an-cats-list');
-        if (!container) return;
-        const periodeEl = document.getElementById('budget-an-periode');
-        const periode = periodeEl ? periodeEl.value : 'mois';
-        const now = new Date();
-        const exclus = this.data.categoriesEpargne || ['ÉPARGNE'];
-        let depsFiltrees = this.data.depenses.filter(
-            d => !exclus.some(e => d.categorie.toUpperCase().includes(e.toUpperCase()))
-        );
-
-        if (periode === 'mois') {
-            depsFiltrees = depsFiltrees.filter(d => {
-                const dt = new Date(d.date);
-                return dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth();
-            });
-        } else if (periode === 'mois-choisi') {
-            const moisVal = document.getElementById('budget-an-mois')?.value;
-            if (moisVal) {
-                const [y, m] = moisVal.split('-').map(Number);
-                depsFiltrees = depsFiltrees.filter(d => {
-                    const dt = new Date(d.date);
-                    return dt.getFullYear() === y && dt.getMonth() === m - 1;
-                });
-            }
-        } else if (periode === 'annee') {
-            depsFiltrees = depsFiltrees.filter(d => new Date(d.date).getFullYear() === now.getFullYear());
-        } else if (periode === 'annee-choisie') {
-            const anneeVal = parseInt(document.getElementById('budget-an-annee')?.value);
-            if (anneeVal) {
-                depsFiltrees = depsFiltrees.filter(d => new Date(d.date).getFullYear() === anneeVal);
-            }
-        } else if (periode === 'plage') {
-            const debut = document.getElementById('budget-an-debut')?.value;
-            const fin   = document.getElementById('budget-an-fin')?.value;
-            if (debut) depsFiltrees = depsFiltrees.filter(d => d.date >= debut);
-            if (fin)   depsFiltrees = depsFiltrees.filter(d => d.date <= fin);
-        }
-
-        const totalAll = depsFiltrees.reduce((s, d) => s + d.montant, 0);
-        const nbTx = depsFiltrees.length;
-
-        // Calcul de la métrique 3e stat : moy/jour pour mois unique, moy/mois sinon
-        let avgValue = 0;
-        let avgLabel = 'Moy. / jour';
-        const isMultiMonth = ['annee','annee-choisie','plage'].includes(periode);
-
-        if (isMultiMonth) {
-            avgLabel = 'Moy. / mois';
-            if (depsFiltrees.length > 0) {
-                // Nombre de mois distincts dans la sélection
-                const moisDistincts = new Set(depsFiltrees.map(d => d.date.slice(0,7))).size;
-                avgValue = moisDistincts > 0 ? totalAll / moisDistincts : 0;
-            }
-        } else {
-            // Mois unique → moy/jour comme avant
-            let daysInPeriod = 1;
-            if (periode === 'mois') {
-                daysInPeriod = now.getDate();
-            } else if (periode === 'mois-choisi') {
-                const moisVal = document.getElementById('budget-an-mois')?.value;
-                if (moisVal) {
-                    const [y, m] = moisVal.split('-').map(Number);
-                    const isCurrentMonth = y === now.getFullYear() && m === now.getMonth() + 1;
-                    daysInPeriod = isCurrentMonth ? now.getDate() : new Date(y, m, 0).getDate();
-                }
-            }
-            avgValue = daysInPeriod > 0 ? totalAll / daysInPeriod : 0;
-        }
-
-        const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-        set('budget-an-total', this.formatCurrency(totalAll));
-        set('budget-an-count', nbTx);
-        set('budget-an-avg',   this.formatCurrency(avgValue));
-        set('budget-an-avg-label', avgLabel);
-
-        const bycat = {};
-        depsFiltrees.forEach(d => {
-            if (!bycat[d.categorie]) bycat[d.categorie] = { txs: [], total: 0 };
-            bycat[d.categorie].txs.push(d);
-            bycat[d.categorie].total += d.montant;
+    _anDeps() {
+        return (this.data.depenses || []).filter(d => d.date && !this._estCatEpargne(d.categorie));
+    },
+    _anParMois() {
+        const m = {};
+        this._anDeps().forEach(d => {
+            const k = d.date.slice(0, 7);
+            if (!m[k]) m[k] = {};
+            m[k][d.categorie] = (m[k][d.categorie] || 0) + d.montant;
         });
-        const cats = Object.entries(bycat).sort((a, b) => b[1].total - a[1].total);
-        if (cats.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📈</div><div>Aucune dépense pour cette période</div></div>';
+        return m;
+    },
+    _anCurYm() { return this._jourLocal().slice(0, 7); },
+    // Les n mois qui précèdent ym (le plus récent d'abord)
+    _anMoisAvant(ym, n) {
+        const [y, m] = ym.split('-').map(Number);
+        return Array.from({ length: n }, (_, i) => this._jourLocal(new Date(y, m - 2 - i, 1)).slice(0, 7));
+    },
+    _anNomMois(ym, court) {
+        const d = new Date(ym + '-01T12:00');
+        return d.toLocaleDateString('fr-FR', court ? { month: 'short', year: 'numeric' } : { month: 'long', year: 'numeric' });
+    },
+    _anMaj(txt) { return txt.charAt(0).toUpperCase() + txt.slice(1); },
+    _anSomme(o) { return Object.values(o || {}).reduce((s, v) => s + v, 0); },
+    _anNorm(t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); },
+    _anLigneDep(d, avecCat) {
+        const date = new Date(d.date + 'T12:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+        return `<button type="button" class="an-dep" onclick="app.ouvrirEditTransaction('dep','${app._esc(String(d.id))}')" title="Modifier">
+            <span class="an-dep-date">${date}</span><span class="an-dep-txt">${app._esc(d.note || 'Sans libellé')}${avecCat ? ` <span class="bl-tag">${app._esc(d.categorie)}</span>` : ''}</span><span class="an-dep-v">${this._eur2(d.montant)}</span></button>`;
+    },
+
+    /* ── 📊 Comparer ── */
+    _renderComparer() {
+        const body = document.getElementById('an-comparer-body');
+        if (!body) return;
+        const pm = this._anParMois();
+        const cur = this._anCurYm();
+        const dispo = [...new Set([...Object.keys(pm), cur])].sort();
+        if (!this._anCmp) this._anCmp = { mois: Object.keys(pm).filter(k => k < cur).sort().pop() || cur, mode: 'moy', autre: '' };
+        const st = this._anCmp;
+        if (!dispo.includes(st.mois)) st.mois = cur;
+        const eur = v => this._blEur(v);
+        const actuel = pm[st.mois] || {};
+        let ref = {}, refNom = '', refCourt = '', vide = '';
+        if (st.mode === 'moy') {
+            const mois = this._anMoisAvant(st.mois, 12).filter(k => pm[k]);
+            mois.forEach(k => Object.entries(pm[k]).forEach(([c, v]) => { ref[c] = (ref[c] || 0) + v / mois.length; }));
+            refNom = `ta moyenne (${mois.length} mois)`; refCourt = 'moy.';
+            if (!mois.length) vide = 'Pas encore de mois avant celui-ci pour calculer une moyenne.';
+        } else {
+            const autres = dispo.filter(k => k !== st.mois);
+            const r = st.mode === 'prec' ? this._anMoisAvant(st.mois, 1)[0] : (autres.includes(st.autre) ? st.autre : autres.filter(k => k < st.mois).pop() || autres[0]);
+            if (st.mode === 'autre') st.autre = r;
+            ref = pm[r] || {};
+            refNom = this._anNomMois(r); refCourt = this._anNomMois(r, true).replace(/ \d{4}$/, '');
+            if (!pm[r]) vide = `Aucune dépense en ${refNom}.`;
+        }
+        const cats = [...new Set([...Object.keys(actuel), ...Object.keys(ref)])]
+            .map(c => ({ c, a: actuel[c] || 0, b: ref[c] || 0 }))
+            .filter(x => Math.max(x.a, x.b) >= 0.5)
+            .map(x => ({ ...x, d: x.a - x.b }))
+            .sort((x, y) => Math.abs(y.d) - Math.abs(x.d));
+        const ta = this._anSomme(actuel), tb = this._anSomme(ref), diff = ta - tb;
+        const i = dispo.indexOf(st.mois);
+        const nom = this._anNomMois(st.mois);
+        document.getElementById('an-comparer-sub').textContent = this._anMaj(nom);
+        const autresOpts = dispo.filter(k => k !== st.mois).reverse().map(k => `<option value="${k}" ${k === st.autre ? 'selected' : ''}>${this._anMaj(this._anNomMois(k))}</option>`).join('');
+        const top = `<div class="po-top">
+            <div class="an-nav"><button type="button" class="bl-btn" onclick="app._anCmpNav(-1)" ${i > 0 ? '' : 'disabled'} aria-label="Mois précédent">‹</button><b>${this._anMaj(nom)}</b><button type="button" class="bl-btn" onclick="app._anCmpNav(1)" ${i < dispo.length - 1 ? '' : 'disabled'} aria-label="Mois suivant">›</button></div>
+            ${this._segHtml([['moy', 'Ma moyenne'], ['prec', 'Mois d\'avant'], ['autre', 'Autre mois']], st.mode, 'app._anCmpMode')}</div>
+            ${st.mode === 'autre' ? `<label class="an-autre">Comparer à <select class="po-in" onchange="app._anCmp.autre=this.value;app._renderComparer()">${autresOpts}</select></label>` : ''}`;
+        if (vide) { body.innerHTML = top + `<div class="bl-card"><div class="bl-sub">${vide}</div></div>`; return; }
+        const baisses = cats.filter(x => x.d < -0.5).sort((x, y) => x.d - y.d).slice(0, 2);
+        const hausses = cats.filter(x => x.d > 0.5).sort((x, y) => y.d - x.d).slice(0, 2);
+        const liste = arr => arr.map(x => `${app._esc(x.c)} (${this._blSigne(x.d)})`).join(' et ');
+        let phrase;
+        if (Math.abs(diff) < Math.max(10, tb * 0.05)) phrase = 'quasiment comme ' + (st.mode === 'moy' ? 'd\'habitude' : 'en ' + refNom);
+        else if (diff < 0) phrase = baisses.length ? 'surtout grâce à ' + liste(baisses) : '';
+        else phrase = hausses.length ? 'surtout à cause de ' + liste(hausses) : '';
+        const enCours = st.mois === cur;
+        const jour = new Date().getDate(), nbJours = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+        const hero = `<div class="bl-hero"><div class="bl-lbl">${this._anMaj(nom.split(' ')[0])} face à ${refNom}</div>
+            <div class="bl-big">${this._blSigne(diff)}</div>
+            <div class="bl-sub">${eur(ta)} dépensés pour ${eur(tb)}${st.mode === 'moy' ? ' en moyenne' : ''}${phrase ? ` · <b style="color:#fff">${phrase}</b>` : ''}</div>
+            ${enCours ? `<div class="bl-sub" style="margin-top:.4rem">⏳ Mois en cours (jour ${jour} sur ${nbJours}) : la comparaison n'est pas encore complète.</div>` : ''}</div>`;
+        const maxAbs = Math.max(1, ...cats.map(x => Math.abs(x.d)));
+        const moisCourt = this._anNomMois(st.mois, true).replace(/ \d{4}$/, '');
+        const rows = cats.map(x => {
+            const w = Math.abs(x.d) / maxAbs * 50;
+            const barre = x.d < 0 ? `right:50%;width:${w}%;background:linear-gradient(270deg,#00e676,#00a152)` : `left:50%;width:${w}%;background:linear-gradient(90deg,#ff8a80,#e53935)`;
+            return `<div class="an-cmp"><b>${this._blCatLabel(x.c)}</b><div class="an-div"><i style="${barre}"></i></div><span class="an-n">${eur(x.a)}</span><span class="an-n">${eur(x.b)}</span>
+                <span class="an-badge ${Math.abs(x.d) < 0.5 ? '' : x.d > 0 ? 'up' : 'down'}">${Math.abs(x.d) < 0.5 ? '=' : this._blSigne(x.d)}</span></div>`;
+        }).join('');
+        body.innerHTML = top + hero + `<div class="bl-card"><div class="an-cmp an-cmp-head"><span class="bl-lbl">Catégorie</span><span class="bl-lbl an-div-lbl">écart</span><span class="bl-lbl an-n">${moisCourt}</span><span class="bl-lbl an-n">${refCourt}</span><span class="bl-lbl an-n">écart</span></div>${rows || '<div class="bl-sub">Aucune dépense à comparer.</div>'}</div>`;
+    },
+    _anCmpNav(sens) {
+        const pm = this._anParMois();
+        const dispo = [...new Set([...Object.keys(pm), this._anCurYm()])].sort();
+        const i = dispo.indexOf(this._anCmp.mois) + sens;
+        if (i >= 0 && i < dispo.length) { this._anCmp.mois = dispo[i]; this._renderComparer(); }
+    },
+    _anCmpMode(m) { this._anCmp.mode = m; this._renderComparer(); },
+
+    /* ── 📈 Tendances ── */
+    _renderTendances() {
+        const body = document.getElementById('an-tendances-body');
+        if (!body) return;
+        const pm = this._anParMois();
+        const cur = this._anCurYm();
+        const L3 = this._anMoisAvant(cur, 3);
+        const P = this._anMoisAvant(L3[2], 9).filter(k => pm[k]);
+        const sub = document.getElementById('an-tendances-sub');
+        if (P.length < 3 || !L3.some(k => pm[k])) {
+            if (sub) sub.textContent = '';
+            body.innerHTML = `<div class="bl-hero"><div class="bl-lbl">Tendances</div><div class="bl-big bl-big-sm">Pas encore assez d'historique</div><div class="bl-sub">Il faut au moins 6 mois complets de dépenses : les 3 derniers sont comparés aux mois d'avant.</div></div>`;
             return;
         }
-        const BAR_COLORS = ['linear-gradient(90deg,#f44336,#e57373)','linear-gradient(90deg,#ff9800,#ffb74d)','linear-gradient(90deg,#ff9800,#ffd54f)','linear-gradient(90deg,#00c853,#69f0ae)','linear-gradient(90deg,#3f51b5,#7c4dff)','linear-gradient(90deg,#5c6bc0,#9fa8da)','linear-gradient(90deg,#7c4dff,#b259ff)','linear-gradient(90deg,#e91e63,#f48fb1)'];
-        container.innerHTML = cats.map(([cat, data], i) => {
-            const pct = totalAll > 0 ? Math.round(data.total / totalAll * 100) : 0;
-            const barColor = BAR_COLORS[i % BAR_COLORS.length];
-            const emoji = this._getCatEmoji(cat);
-            const catName = cat.replace(/^\p{Emoji}\s*/u, '') || cat;
-            const txsHtml = data.txs
-                .sort((a, b) => new Date(b.date) - new Date(a.date))
-                .map(t => {
-                    const dt = new Date(t.date);
-                    const MONTHS_ABBR = ['jan','fév','mars','avr','mai','juin','juil','août','sep','oct','nov','déc'];
-                    return `<div class="an-tx-row">
-                        <span class="an-tx-date">${dt.getDate()} ${MONTHS_ABBR[dt.getMonth()]}${isMultiMonth ? ' ' + dt.getFullYear() : ''}</span>
-                        <span class="an-tx-note">${app._esc(t.note || '—')}</span>
-                        <span class="an-tx-amount">−${this.formatCurrency(t.montant)}</span>
-                    </div>`;
-                }).join('');
-            return `<div class="an-cat-block" id="an-cat-block-${i}">
-                <div class="an-cat-header" onclick="app._toggleBudgetAnCat(${i})">
-                    <div class="an-cat-emoji" style="background:var(--bg-secondary)">${emoji}</div>
-                    <div class="an-cat-label">
-                        <div class="an-cat-name">${catName}</div>
-                        <div class="an-cat-bar-row">
-                            <div class="an-cat-bar-bg"><div class="an-cat-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
-                            <span class="an-cat-pct">${pct}%</span>
-                        </div>
-                    </div>
-                    <div class="an-cat-right">
-                        <span class="an-cat-amount">${this.formatCurrency(data.total)}</span>
-                        <span class="an-cat-count">${data.txs.length} transaction${data.txs.length > 1 ? 's' : ''}</span>
-                    </div>
-                    <span class="an-cat-chevron">›</span>
-                </div>
-                <div class="an-cat-txs">${txsHtml}</div>
-            </div>`;
-        }).join('');
+        const eur = v => this._blEur(v);
+        const court = k => this._anNomMois(k, true).replace(/ \d{4}$/, '');
+        if (sub) sub.textContent = `${this._anMaj(court(L3[2]))} → ${court(L3[0])} ${L3[0].slice(0, 4)} face aux ${P.length} mois d'avant`;
+        const deps = this._anDeps();
+        const douze = this._anMoisAvant(cur, 12).reverse();
+        const cats = [...new Set([...L3, ...P].flatMap(k => Object.keys(pm[k] || {})))];
+        const lignes = cats.map(c => {
+            const a = L3.reduce((s, k) => s + (pm[k]?.[c] || 0), 0) / 3;
+            const b = P.reduce((s, k) => s + (pm[k]?.[c] || 0), 0) / P.length;
+            return { c, a, b, d: a - b };
+        }).filter(x => Math.max(x.a, x.b) >= 5);
+        lignes.forEach(x => {
+            const seuil = Math.max(15, x.b * 0.2);
+            x.sens = x.d >= seuil ? 'up' : x.d <= -seuil ? 'down' : 'flat';
+            x.note = '';
+            if (x.sens !== 'flat') {
+                // Une seule grosse dépense explique-t-elle l'écart ?
+                const periode = x.sens === 'up' ? L3 : P;
+                const liste = deps.filter(d => d.categorie === x.c && periode.includes(d.date.slice(0, 7)));
+                const total = liste.reduce((s, d) => s + d.montant, 0);
+                const max = liste.reduce((m, d) => (!m || d.montant > m.montant ? d : m), null);
+                if (max && max.montant >= 80 && max.montant >= total * 0.5) x.note = `surtout une grosse dépense : ${app._esc(max.note || 'sans libellé')} · ${eur(max.montant)} (${court(max.date.slice(0, 7))})`;
+                // Même période l'an dernier (si l'historique le permet)
+                if (x.sens === 'up' && !x.note) {
+                    const anDernier = L3.map(k => `${+k.slice(0, 4) - 1}${k.slice(4)}`).filter(k => pm[k]);
+                    if (anDernier.length >= 2) {
+                        const v = anDernier.reduce((s, k) => s + (pm[k]?.[x.c] || 0), 0) / anDernier.length;
+                        if (v >= x.b + x.d * 0.5) x.note = `même période l'an dernier : ${eur(v)}/mois, sans doute saisonnier`;
+                    }
+                }
+            }
+        });
+        const spark = c => {
+            const vals = douze.map(k => pm[k]?.[c] || 0);
+            const max = Math.max(1, ...vals);
+            return `<div class="an-spark">${vals.map((v, i) => `<i class="${i >= 9 ? 'r' : ''}" style="height:${Math.max(2, v / max * 100)}%" title="${court(douze[i])} : ${eur(v)}"></i>`).join('')}</div>`;
+        };
+        const row = x => `<div class="an-tr"><b>${this._blCatLabel(x.c)}</b><div>${spark(x.c)}${x.note ? `<div class="bl-sub an-tr-note">ⓘ ${x.note}</div>` : ''}</div>
+            <span class="an-tr-v"><span class="an-badge ${x.sens}">${this._blSigne(x.d)}/mois</span><span class="bl-sub">${eur(x.a)} vs ${eur(x.b)}</span></span></div>`;
+        const up = lignes.filter(x => x.sens === 'up').sort((p, q) => q.d - p.d);
+        const down = lignes.filter(x => x.sens === 'down').sort((p, q) => p.d - q.d);
+        const flat = lignes.filter(x => x.sens === 'flat').sort((p, q) => q.a - p.a);
+        const ta = lignes.reduce((s, x) => s + x.a, 0), tb = lignes.reduce((s, x) => s + x.b, 0);
+        const pct = tb > 0 ? (ta - tb) / tb * 100 : 0;
+        const titre = !up.length && !down.length ? 'Tout est stable'
+            : [up.length ? `${up.length} hausse${up.length > 1 ? 's' : ''}` : '', down.length ? `${down.length} baisse${down.length > 1 ? 's' : ''}` : ''].filter(Boolean).join(', ') + (flat.length ? ', le reste stable' : '');
+        const bloc = (t, arr) => arr.length ? `<div class="bl-card"><h3>${t}</h3>${arr.map(row).join('')}</div>` : '';
+        body.innerHTML = `<div class="bl-hero"><div class="bl-lbl">En résumé</div><div class="bl-big an-titre">${titre}</div>
+            <div class="bl-sub">tes dépenses : ${eur(ta)}/mois ces 3 mois, contre ${eur(tb)} avant (${pct >= 0 ? '+' : '−'}${Math.abs(Math.round(pct))} %)</div></div>
+            ${bloc('⬆ En hausse', up)}${bloc('⬇ En baisse', down)}${bloc('≈ Stable', flat)}
+            <div class="bl-sub an-legende">Mini-graphiques : 12 derniers mois complets, les 3 plus récents en violet. Seuil : un écart d'au moins 15 € et 20 % compte comme une hausse ou une baisse.</div>`;
     },
 
-    _toggleBudgetAnCat(i) {
-        const block = document.getElementById('an-cat-block-' + i);
-        if (!block) return;
-        const wasOpen = block.classList.contains('expanded');
-        document.querySelectorAll('.an-cat-block').forEach(b => b.classList.remove('expanded'));
-        if (!wasOpen) block.classList.add('expanded');
-    }
+    /* ── 💶 Revenus & cashflow ── */
+    _renderCashflow() {
+        const body = document.getElementById('an-cashflow-body');
+        if (!body) return;
+        if (!this._anCf) this._anCf = { n: 12 };
+        const n = this._anCf.n;
+        const cur = this._anCurYm();
+        const premier = [...this._anDeps().map(d => d.date.slice(0, 7)), ...(this.data.revenus || []).map(r => r.mois).filter(Boolean)].sort()[0];
+        const mois = [cur, ...this._anMoisAvant(cur, n - 1)].reverse().filter(k => !premier || k >= premier);
+        const lignes = mois.map(k => {
+            const [y, m] = k.split('-').map(Number);
+            const r = this.getRevenusMois(y, m - 1);
+            const dep = this.getDepEffectives(y, m - 1);
+            return { k, rev: r.total, est: r.source !== 'reel', dep, cash: r.total - dep, enCours: k === cur };
+        });
+        const comp = lignes.filter(l => !l.enCours);
+        const eur = v => this._blEur(v);
+        const court = k => this._anNomMois(k, true).replace(/ \d{4}$/, '');
+        const seg = this._segHtml([['12', '12 mois'], ['24', '24 mois']], String(n), 'app._anCfN');
+        if (!comp.length) { body.innerHTML = `<div class="po-top"><span></span>${seg}</div><div class="bl-card"><div class="bl-sub">Pas encore de mois complet à afficher.</div></div>`; return; }
+        const somme = f => comp.reduce((s, l) => s + f(l), 0);
+        const avgCash = somme(l => l.cash) / comp.length, avgRev = somme(l => l.rev) / comp.length, avgDep = somme(l => l.dep) / comp.length;
+        const taux = somme(l => l.rev) > 0 ? somme(l => l.cash) / somme(l => l.rev) * 100 : null;
+        const positifs = comp.filter(l => l.cash >= 0).length;
+        const best = comp.reduce((b, l) => (l.cash > b.cash ? l : b), comp[0]);
+        const nbEst = comp.filter(l => l.est).length;
+        const hero = `<div class="bl-hero"><div class="bl-lbl">Sur ${comp.length} mois complets</div><div class="bl-big">${this._blSigne(avgCash)} / mois</div>
+            <div class="bl-sub">gardés en moyenne${taux != null ? ` · ${Math.round(taux)} % de tes revenus` : ''} · ${positifs} mois sur ${comp.length} positifs${positifs === comp.length ? ' ✓' : ''}</div>
+            <div class="bl-row bl-tiles" style="margin-top:.9rem"><div class="bl-tile"><div class="bl-lbl">Revenus moyens</div><b>${eur(avgRev)}</b></div><div class="bl-tile"><div class="bl-lbl">Dépenses moyennes</div><b>${eur(avgDep)}</b></div><div class="bl-tile"><div class="bl-lbl">Meilleur mois</div><b>${court(best.k)} · ${this._blSigne(best.cash)}</b></div></div></div>`;
+        const maxPos = Math.max(1, ...lignes.map(l => l.cash));
+        const maxNeg = Math.max(0, ...lignes.map(l => -l.cash));
+        const hautPct = maxNeg > 0 ? maxPos / (maxPos + maxNeg) * 100 : 100;
+        const H = 150;
+        const barres = lignes.map(l => {
+            const t = l.rev > 0 ? l.cash / l.rev : 0;
+            const cls = (l.cash < 0 ? 'neg' : t < 0.1 ? 'lo' : 'pos') + (l.enCours ? ' part' : '');
+            const label = l === best || l.enCours ? `<em>${this._blSigne(l.cash)}</em>` : '';
+            const hPos = l.cash > 0 ? l.cash / maxPos * hautPct : 0;
+            const hNeg = l.cash < 0 ? -l.cash / maxNeg * (100 - hautPct) : 0;
+            return `<div class="an-cf-col" title="${this._anMaj(this._anNomMois(l.k))} : ${this._blSigne(l.cash)} (revenus ${eur(l.rev)}${l.est ? ' estimés' : ''} − dépenses ${eur(l.dep)})">
+                <i class="${cls}" style="bottom:${l.cash >= 0 ? 100 - hautPct : 100 - hautPct - hNeg}%;height:${Math.max(l.cash ? 1.5 : 0, l.cash >= 0 ? hPos : hNeg)}%"></i>
+                ${label ? `<span class="an-cf-lbl" style="bottom:calc(${l.cash >= 0 ? 100 - hautPct + hPos : 100 - hautPct - hNeg}% ${l.cash >= 0 ? '+ 3px' : '- 14px'})">${label}</span>` : ''}
+                <span class="an-cf-m">${court(l.k).charAt(0).toUpperCase()}</span></div>`;
+        }).join('');
+        const ligneMoy = avgCash > 0 ? `<div class="an-cf-moy" style="bottom:calc(18px + ${(100 - hautPct + avgCash / maxPos * hautPct) / 100 * H}px)"></div>` : '';
+        const ligneZero = maxNeg > 0 ? `<div class="an-cf-zero" style="bottom:calc(18px + ${(100 - hautPct) / 100 * H}px)"></div>` : '';
+        const legende = ['En orange : moins de 10 % des revenus gardés', maxNeg > 0 ? 'en rouge : dépenses > revenus' : '', lignes.some(l => l.enCours) ? `${this._anNomMois(cur).split(' ')[0]} (clair) est en cours` : '', nbEst ? 'revenus estimés avec ton salaire quand rien n\'est saisi' : ''].filter(Boolean).join(' · ');
+        const table = [...lignes].reverse().map(l => `<tr onclick="app._anCmp={mois:'${l.k}',mode:'moy',autre:''};app.closeBilanModal('modal-an-cashflow');app.choisirAnalyse('comparer')" title="Comparer ce mois à ta moyenne">
+            <td>${this._anMaj(this._anNomMois(l.k, true))}${l.enCours ? ' <span class="bl-sub">(en cours)</span>' : ''}</td><td>${eur(l.rev)}${l.est ? ' <span class="bl-tag">est.</span>' : ''}</td><td>${eur(l.dep)}</td>
+            <td class="${l.cash >= 0 ? 'bl-pos' : 'bl-neg'}">${this._blSigne(l.cash)}</td><td>${l.rev > 0 ? Math.round(l.cash / l.rev * 100) + ' %' : '—'}</td></tr>`).join('');
+        body.innerHTML = `<div class="po-top"><span></span>${seg}</div>${hero}
+            <div class="bl-card"><div class="bl-card-head"><h3>Gardé chaque mois</h3><span class="bl-sub">- - moyenne</span></div>
+            <div class="an-cf">${barres}${ligneZero}${ligneMoy}</div><div class="bl-sub" style="margin-top:.5rem">${legende}.</div></div>
+            <div class="bl-card"><details class="bl-details" style="margin:0"><summary>Voir le tableau mois par mois ›</summary>
+            <table class="bl-table an-cf-table"><thead><tr><th>Mois</th><th>Revenus</th><th>Dépenses</th><th>Gardé</th><th>Taux</th></tr></thead><tbody>${table}</tbody></table>
+            <div class="bl-sub" style="margin-top:.4rem">Clique un mois pour le comparer à ta moyenne.</div></details></div>`;
+    },
+    _anCfN(n) { this._anCf.n = +n; this._renderCashflow(); },
 
+    /* ── 🔎 Explorer mes dépenses ── */
+    _anExpPeriode() {
+        const st = this._anExp;
+        const auj = this._jourLocal();
+        const cur = this._anCurYm();
+        const fin = ym => { const [y, m] = ym.split('-').map(Number); return this._jourLocal(new Date(y, m, 0)); };
+        if (st.per.startsWith('m:')) { const k = st.per.slice(2); return { du: k + '-01', au: fin(k), nbMois: 1, label: this._anNomMois(k) }; }
+        switch (st.per) {
+            case 'mois': return { du: cur + '-01', au: auj, nbMois: null, label: 'ce mois-ci' };
+            case 'prec': { const k = this._anMoisAvant(cur, 1)[0]; return { du: k + '-01', au: fin(k), nbMois: 1, label: this._anNomMois(k) }; }
+            case '3m': { const l = this._anMoisAvant(cur, 3); return { du: l[2] + '-01', au: fin(l[0]), nbMois: 3, label: '3 derniers mois complets' }; }
+            case 'annee': return { du: auj.slice(0, 4) + '-01-01', au: auj, nbMois: null, label: 'depuis janvier' };
+            case 'dates': return { du: st.du || cur + '-01', au: st.au || auj, nbMois: null, label: 'période choisie' };
+            default: { const l = this._anMoisAvant(cur, 12); return { du: l[11] + '-01', au: fin(l[0]), nbMois: 12, label: '12 derniers mois complets' }; }
+        }
+    },
+    _renderExplorer() {
+        const body = document.getElementById('an-explorer-body');
+        if (!body) return;
+        if (!this._anExp) this._anExp = { per: '12m', du: '', au: '', q: '', cat: null };
+        const st = this._anExp;
+        const p = this._anExpPeriode();
+        document.getElementById('an-explorer-sub').textContent = this._anMaj(p.label);
+        if (st.cat) { this._renderExplorerCat(body, p); return; }
+        const chips = [['mois', 'Ce mois'], ['prec', 'Mois dernier'], ['3m', '3 mois'], ['12m', '12 mois'], ['annee', 'Cette année'], ['dates', 'Dates…']];
+        if (st.per.startsWith('m:')) chips.unshift([st.per, this._anMaj(this._anNomMois(st.per.slice(2), true))]);
+        body.innerHTML = `<div class="po-chips an-chips">${chips.map(([v, l]) => `<button type="button" class="po-chip${st.per === v ? ' on' : ''}" onclick="app._anExpPer('${v}')">${l}</button>`).join('')}</div>
+            ${st.per === 'dates' ? `<div class="po-row2"><label>Du<input type="date" class="po-in" value="${p.du}" onchange="app._anExp.du=this.value;app._renderExplorer()"></label><label>Au<input type="date" class="po-in" value="${p.au}" onchange="app._anExp.au=this.value;app._renderExplorer()"></label></div>` : ''}
+            <label class="an-search"><span>🔍</span><input type="search" class="po-in" placeholder="Rechercher un libellé ou une catégorie" value="${app._esc(st.q)}" oninput="app._anExp.q=this.value;app._anExpResultats()"></label>
+            <div id="an-exp-res"></div>`;
+        this._anExpResultats();
+    },
+    _anExpPer(v) { Object.assign(this._anExp, { per: v, cat: null }); this._renderExplorer(); },
+    _anExpResultats() {
+        const out = document.getElementById('an-exp-res');
+        if (!out) return;
+        const st = this._anExp;
+        const p = this._anExpPeriode();
+        const eur = v => this._blEur(v);
+        let deps = this._anDeps().filter(d => d.date >= p.du && d.date <= p.au);
+        const q = this._anNorm(st.q.trim());
+        if (q) deps = deps.filter(d => this._anNorm(d.note).includes(q) || this._anNorm(d.categorie).includes(q));
+        const total = deps.reduce((s, d) => s + d.montant, 0);
+        const jours = Math.max(1, Math.round((new Date(p.au) - new Date(p.du)) / 86400000) + 1);
+        const moyen = p.nbMois ? [`Par mois`, eur(total / p.nbMois)] : [`Par jour`, this._eur2(total / jours)];
+        const stats = `<div class="an-stats"><div><span class="bl-lbl">Total</span><b>${eur(total)}</b></div><div><span class="bl-lbl">${moyen[0]}</span><b>${moyen[1]}</b></div><div><span class="bl-lbl">Dépenses</span><b>${deps.length}</b></div></div>`;
+        if (!deps.length) { out.innerHTML = stats + `<div class="bl-card"><div class="bl-sub">${q ? 'Aucune dépense ne correspond à ta recherche sur cette période.' : 'Aucune dépense sur cette période.'}</div></div>`; return; }
+        if (q) {
+            const liste = [...deps].sort((a, b) => b.date.localeCompare(a.date));
+            out.innerHTML = stats + `<div class="bl-card"><h3>${liste.length} dépense${liste.length > 1 ? 's' : ''} trouvée${liste.length > 1 ? 's' : ''}</h3>${liste.slice(0, 200).map(d => this._anLigneDep(d, true)).join('')}</div>`;
+            return;
+        }
+        const parCat = {};
+        deps.forEach(d => { if (!parCat[d.categorie]) parCat[d.categorie] = { t: 0, n: 0 }; parCat[d.categorie].t += d.montant; parCat[d.categorie].n++; });
+        const cats = Object.entries(parCat).sort((a, b) => b[1].t - a[1].t);
+        const max = cats[0][1].t || 1;
+        out.innerHTML = stats + `<div class="bl-card an-cats">${cats.map(([c, v]) => `<button type="button" class="an-cat" onclick="app._anExp.cat=${app._jsCat(c)};app._renderExplorer()">
+            <span class="an-cat-e">${this._getCatEmoji(c)}</span><span class="an-cat-n"><b>${app._esc(c.replace(/^\p{Emoji}\s*/u, '') || c)}</b><span class="bl-bar"><i style="width:${v.t / max * 100}%"></i></span></span>
+            <span class="an-cat-v">${eur(v.t)}<span class="bl-sub">${Math.round(v.t / total * 100)} % · ${v.n}</span></span><span class="an-cat-go">›</span></button>`).join('')}</div>
+            <div class="bl-sub an-legende">Clique une catégorie pour voir son évolution sur 12 mois et ses dépenses.</div>`;
+    },
+    _renderExplorerCat(body, p) {
+        const st = this._anExp;
+        const cat = st.cat;
+        const eur = v => this._blEur(v);
+        const pm = this._anParMois();
+        const cur = this._anCurYm();
+        const douze = this._anMoisAvant(cur, 12).reverse();
+        const avecDonnees = douze.filter(k => pm[k]);
+        const vals = douze.map(k => pm[k]?.[cat] || 0);
+        const moy = avecDonnees.length ? avecDonnees.reduce((s, k) => s + (pm[k]?.[cat] || 0), 0) / avecDonnees.length : 0;
+        const budget = this.data.budgets?.[cat] || 0;
+        const depasse = budget > 0 ? avecDonnees.filter(k => (pm[k]?.[cat] || 0) > budget).length : 0;
+        const max = Math.max(1, budget, ...vals);
+        const court = k => this._anNomMois(k, true).replace(/ \d{4}$/, '');
+        const barres = douze.map((k, i) => `<div class="an-mt-col" title="${this._anMaj(this._anNomMois(k))} : ${eur(vals[i])}"><i class="${budget > 0 && vals[i] > budget ? 'over' : ''}" style="height:${vals[i] / max * 100}%"></i><span>${court(k).charAt(0).toUpperCase()}</span></div>`).join('');
+        const deps = this._anDeps().filter(d => d.categorie === cat && d.date >= p.du && d.date <= p.au).sort((a, b) => b.date.localeCompare(a.date));
+        const total = deps.reduce((s, d) => s + d.montant, 0);
+        body.innerHTML = `<button type="button" class="bl-link an-back" onclick="app._anExp.cat=null;app._renderExplorer()">‹ Toutes les catégories</button>
+            <div class="bl-hero"><div class="bl-lbl">${this._getCatEmoji(cat)} ${app._esc(cat)} · moyenne ${avecDonnees.length} mois</div><div class="bl-big bl-big-sm">${eur(moy)} / mois</div>
+            <div class="bl-sub">${budget > 0 ? `ton budget : ${eur(budget)} · dépassé ${depasse} mois sur ${avecDonnees.length}` : 'pas de budget défini pour cette catégorie'}</div></div>
+            <div class="bl-card"><h3>Mois par mois</h3><div class="an-mt">${barres}${budget > 0 ? `<div class="an-mt-budget" style="bottom:${16 + budget / max * 120}px"><b>${eur(budget)}</b></div>` : ''}</div></div>
+            <div class="bl-card"><div class="bl-card-head"><h3>Dépenses · ${p.label}</h3><span class="bl-sub">${eur(total)}</span></div>
+            ${deps.length ? deps.slice(0, 200).map(d => this._anLigneDep(d, false)).join('') : '<div class="bl-sub">Aucune dépense dans cette catégorie sur la période.</div>'}</div>`;
+    },
 };
 
 document.addEventListener('DOMContentLoaded', () => {
