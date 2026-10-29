@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh56">
+    <link rel="stylesheet" href="app.css?v=enh57">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -1077,15 +1077,6 @@
           <canvas id="chart-prev-compare"></canvas>
           <button class="chart-color-btn" id="ccbtn-chart-prev-compare" onclick="app.openChartColorPicker('chart-prev-compare')" title="Personnaliser">🎨</button>
         </div>
-        <div class="grid grid-3 grid-stats" style="margin-top:1rem">
-          <div class="stat-card stat-card-main"><div class="stat-label">Perf. moy. réelle</div><div class="stat-value" id="perf-moyenne">0 %</div></div>
-          <div class="stat-card stat-card-main"><div class="stat-label">Projection réaliste</div><div class="stat-value" id="proj-realiste">0 €</div></div>
-          <div class="stat-card stat-card-main"><div class="stat-label">Écart vs objectif</div><div class="stat-value" id="ecart-objectif">0 €</div></div>
-        </div>
-        <div class="chart-container" style="height:200px;margin-top:1rem">
-          <canvas id="chart-proj-realiste"></canvas>
-          <button class="chart-color-btn" id="ccbtn-chart-proj-realiste" onclick="app.openChartColorPicker('chart-proj-realiste')" title="Personnaliser">🎨</button>
-        </div>
       </div>
     </div>
 
@@ -1366,7 +1357,7 @@
 </div>
 
 
-<script src="app.js?v=enh56" defer></script>
+<script src="app.js?v=enh57" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">

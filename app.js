@@ -5711,7 +5711,6 @@ const app = {
         document.getElementById('prev-pea-gains').textContent = this.formatCurrency(gains);
         document.getElementById('prev-pea-results').style.display = 'block';
 
-        this.calculerProjectionRealiste(historiquePrev, annees);
         this.chartPrevCompare(historiquePrev, annees);
     },
 
@@ -6268,7 +6267,6 @@ const app = {
         'chart-pea':           [{label:'Valeur PEA'},{label:'Investi'}],
         'chart-benchmark':     [{label:'Mon PEA'},{label:'MSCI World'},{label:'S&P 500'}],
         'chart-prev-compare':  [{label:'Objectif (prévisionnel)'},{label:'PEA Réel'}],
-        'chart-proj-realiste': [{label:'Projection réelle'},{label:'Objectif'},{label:'Optimiste'}],
         'chart-heatmap':       [{label:'Couleur de la heatmap'}],
     },
 
@@ -6278,7 +6276,6 @@ const app = {
         'chart-pea':           'Évolution PEA',
         'chart-benchmark':     'Benchmark vs Indices',
         'chart-prev-compare':  'Comparaison PEA',
-        'chart-proj-realiste': 'Projection réaliste',
         'chart-pat-evol':      'Évolution par compte',
         'chart-heatmap':       '🌡 Heatmap annuelle',
     },
@@ -6305,7 +6302,6 @@ const app = {
             'chart-pat-evol':        () => this.chartPatEv(),
             'chart-benchmark':       () => this.refreshBenchmark(),
             'chart-prev-compare':    () => { this.calculerPrevisionsPEA && this.calculerPrevisionsPEA(); },
-            'chart-proj-realiste':   () => { this.calculerPrevisionsPEA && this.calculerPrevisionsPEA(); },
             'chart-heatmap':         () => this.applyHeatmapColor(),
         };
         const fn = map[chartId];
@@ -6468,7 +6464,6 @@ const app = {
             'chart-pea':           [c.primary, c.secondary],
             'chart-benchmark':     [c.primary, c.secondary, c.tertiary],
             'chart-prev-compare':  [c.primary, c.success],
-            'chart-proj-realiste': [c.warning, c.primary, c.success],
             'chart-heatmap':       ['#3f51b5'],
         };
         if (map[chartId]) return map[chartId];
@@ -6478,7 +6473,7 @@ const app = {
 
     _refreshAllChartColorBtns() {
         const ids = ['chart-patrimoine','chart-depenses-budget','chart-pea','chart-benchmark',
-                     'chart-pat-evol','chart-prev-compare','chart-proj-realiste','chart-heatmap'];
+                     'chart-pat-evol','chart-prev-compare','chart-heatmap'];
         ids.forEach(id => this._updateChartColorBtn(id));
     },
 
@@ -7321,51 +7316,6 @@ const app = {
         this.calculerPrevisionsPEA();
     },
 
-    calculerProjectionRealiste(historiquePrev, annees) {
-        if (this.data.suiviPEA.length < 2) {
-            document.getElementById('perf-moyenne').textContent = 'N/A';
-            document.getElementById('proj-realiste').textContent = 'N/A';
-            document.getElementById('ecart-objectif').textContent = 'N/A';
-            return;
-        }
-
-        const sorted = [...this.data.suiviPEA].sort((a, b) => new Date(a.date) - new Date(b.date));
-        let totalPerf = 0;
-        let count = 0;
-
-        for (let i = 1; i < sorted.length; i++) {
-            const perf = ((sorted[i].valeur - sorted[i-1].valeur) / sorted[i-1].valeur) * 100;
-            totalPerf += perf;
-            count++;
-        }
-
-        const perfMoyenne = totalPerf / count;
-        document.getElementById('perf-moyenne').textContent = perfMoyenne.toFixed(2) + '%';
-
-        const actuel = parseFloat(document.getElementById('prev-pea-actuel').value) || 0;
-        const mensuel = parseFloat(document.getElementById('prev-pea-mensuel').value) || 0;
-        const tauxReel = (perfMoyenne / 100) / 12;
-        const mois = annees * 12;
-
-        let valeurReel = actuel;
-        const historiqueReel = [{periode: 0, valeur: actuel}];
-
-        for (let i = 1; i <= mois; i++) {
-            valeurReel = (valeurReel + mensuel) * (1 + tauxReel);
-            historiqueReel.push({periode: i, valeur: valeurReel});
-        }
-
-        document.getElementById('proj-realiste').textContent = this.formatCurrency(valeurReel);
-
-        const objectif = historiquePrev[historiquePrev.length - 1].valeur;
-        const ecart = valeurReel - objectif;
-        const ecartElem = document.getElementById('ecart-objectif');
-        ecartElem.textContent = (ecart >= 0 ? '+' : '') + this.formatCurrency(ecart);
-        ecartElem.className = 'stat-value ' + (ecart >= 0 ? 'stat-change positive' : 'stat-change negative');
-
-        this.chartProjRealiste(historiqueReel, historiquePrev, annees);
-    },
-
     chartPrevCompare(historiquePrev, annees) {
         const peaReel = [...this.data.suiviPEA].sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -7420,8 +7370,8 @@ const app = {
                     {
                         label: 'Objectif (Prévisionnel)',
                         data: dataPrev,
-                        borderColor: _b0,
-                        backgroundColor: (ctx2) => { const g=ctx2.chart.ctx.createLinearGradient(0,0,0,300); g.addColorStop(0,_selfB._toRgba(_b0,0.28)); g.addColorStop(1,_selfB._toRgba(_b0,0)); return g; },
+                        borderColor: _pc0,
+                        backgroundColor: (ctx2) => { const g=ctx2.chart.ctx.createLinearGradient(0,0,0,300); g.addColorStop(0,_selfPC._toRgba(_pc0,0.28)); g.addColorStop(1,_selfPC._toRgba(_pc0,0)); return g; },
 
                         tension: 0.4,
                         fill: true,
@@ -7448,85 +7398,6 @@ const app = {
                     title: {
                         display: true,
                         text: 'Êtes-vous sur la bonne voie ?'
-                    }
-                }
-            }
-        });
-    },
-
-    chartProjRealiste(historiqueReel, historiquePrev, annees) {
-        let labels, dataReel, dataPrev;
-
-        if (this.vuePrevision === 'annee') {
-            labels = [];
-            dataReel = [];
-            dataPrev = [];
-
-            for (let i = 0; i <= annees; i++) {
-                labels.push('Année ' + i);
-                const idx = i * 12;
-                dataReel.push(historiqueReel[idx] ? historiqueReel[idx].valeur : null);
-                dataPrev.push(historiquePrev[idx] ? historiquePrev[idx].valeur : null);
-            }
-        } else {
-            labels = [];
-            dataReel = [];
-            dataPrev = [];
-
-            const totalMois = annees * 12;
-            for (let i = 0; i <= totalMois; i++) {
-                labels.push('Mois ' + i);
-                dataReel.push(historiqueReel[i] ? historiqueReel[i].valeur : null);
-                dataPrev.push(historiquePrev[i] ? historiquePrev[i].valeur : null);
-            }
-        }
-
-        if (this.charts.projRealiste) this.charts.projRealiste.destroy();
-        const c = this.getChartColors();
-        const _ccPR = this.getChartCustomColors('chart-proj-realiste');
-        const _pr0 = _ccPR?.[0] || c.warning;
-        const _pr1 = _ccPR?.[1] || c.primary;
-        const _pr2 = _ccPR?.[2] || c.success;
-        const _selfPR = this;
-        const ctx = document.getElementById('chart-proj-realiste').getContext('2d');
-        this.charts.projRealiste = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'Projection avec vos performances',
-                        data: dataReel,
-                        borderColor: '#ff9800',
-                        backgroundColor: (context) => {
-                            const ctx = context.chart.ctx;
-                            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-                            gradient.addColorStop(0, 'rgba(255, 152, 0, 0.3)');
-                            gradient.addColorStop(1, 'rgba(255, 152, 0, 0)');
-                            return gradient;
-                        },
-                        tension: 0.4,
-                        fill: true,
-                        borderWidth: 3
-                    },
-                    {
-                        label: 'Objectif',
-                        data: dataPrev,
-                        borderColor: _pr1,
-                        borderDash: [5, 5],
-                        tension: 0.4,
-                        borderWidth: 2
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'top' },
-                    title: {
-                        display: true,
-                        text: 'Projection basée sur vos performances passées'
                     }
                 }
             }
