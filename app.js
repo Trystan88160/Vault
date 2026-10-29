@@ -28,6 +28,7 @@ const app = {
         lignesPEA: [],
         allocationCible: {},
         classif503020: {},
+        peaOutils: {},
         repartitionComptes: {},
         catEmojis: {},
         parametres: {
@@ -258,12 +259,9 @@ const app = {
         this._initBudgetMonthLabel();
         this.applyTheme();
         if (this.data.parametres.zoom) this.setZoom(this.data.parametres.zoom);
-        this.genererLignes();
         this.updateBudgetsUI();
         this.updateComptesUI();
         this.updateCategoriesSelects();
-        this.updateModelesSelect();
-        this.updateScenariosSelect();
         this.checkBackupReminder();
         this.refresh();
         document.getElementById('overlay').onclick = () => {
@@ -318,7 +316,7 @@ const app = {
         // Fermeture modales budget avec Échap
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
-                ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils'].forEach(id => {
+                ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils','modal-outil-projection','modal-outil-investir','modal-outil-perf'].forEach(id => {
                     document.getElementById(id)?.classList.remove('open');
                 });
                 const ov = document.getElementById('budget-modal-overlay');
@@ -567,7 +565,7 @@ const app = {
             // budget-modal-overlay : contenu = les .budget-modal-box.open
             const openBudgetModal = ['modal-budget-comp','modal-budget-regle','modal-budget-rec',
                 'modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap',
-                'modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils']
+                'modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils','modal-outil-projection','modal-outil-investir','modal-outil-perf']
                 .map(id => document.getElementById(id))
                 .find(el => el?.classList.contains('open'));
             this._budgetMouseDownInside = !!(openBudgetModal && openBudgetModal.contains(e.target));
@@ -1058,6 +1056,7 @@ const app = {
             lignesPEA:          loaded.lignesPEA           || [],
             allocationCible:    loaded.allocationCible     || {},
             classif503020:      loaded.classif503020       || {},
+            peaOutils:          loaded.peaOutils           || {},
             repartitionComptes: loaded.repartitionComptes  || {},
             chartColors:        loaded.chartColors          || {},
             hiddenCards:        loaded.hiddenCards          || {},
@@ -1682,84 +1681,6 @@ const app = {
     },
 
     _simHorizon: 10,
-    ouvrirModalSimulateur() {
-        let modal = document.getElementById('simulateurModal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'simulateurModal';
-            modal.className = 'modal';
-            modal.style.maxWidth = '600px';
-            document.body.appendChild(modal);
-        }
-        const h = this._simHorizon || 10;
-        modal.innerHTML = `
-            <div class="modal-header outil-modal-head"><h2 class="modal-title">🎲 Simulateur "Et si…"</h2><button class="outil-aide-btn" data-aide-for="simulateur" onclick="app.toggleOutilAide('simulateur')">❓ Aide</button></div>
-            <div class="modal-body">
-                <div class="outil-aide" id="outil-aide-simulateur"></div>
-                <div class="form-group" style="margin-bottom:1.25rem">
-                    <label class="form-label">Si j'épargnais… par mois</label>
-                    <div style="display:flex;align-items:center;gap:1rem">
-                        <input type="range" id="sim-epargne" min="50" max="2000" value="300" step="50" style="flex:1;accent-color:var(--accent-primary)" oninput="app.refreshSimulateur()">
-                        <span id="sim-epargne-val" style="font-family:DM Mono,monospace;font-size:1rem;font-weight:700;color:var(--accent-primary);min-width:60px">300 €</span>
-                    </div>
-                </div>
-                <div class="form-group" style="margin-bottom:1.25rem">
-                    <label class="form-label">Rendement annuel</label>
-                    <div style="display:flex;align-items:center;gap:1rem">
-                        <input type="range" id="sim-taux" min="1" max="12" value="6" step="0.5" style="flex:1;accent-color:var(--accent-primary)" oninput="app.refreshSimulateur()">
-                        <span id="sim-taux-val" style="font-family:DM Mono,monospace;font-size:1rem;font-weight:700;color:var(--accent-primary);min-width:40px">6%</span>
-                    </div>
-                </div>
-                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem">
-                    <button class="btn btn-small ${h===5?'':'btn-secondary'}" onclick="app.simSetHorizon(5)" id="sim-5">5 ans</button>
-                    <button class="btn btn-small ${h===10?'':'btn-secondary'}" onclick="app.simSetHorizon(10)" id="sim-10">10 ans</button>
-                    <button class="btn btn-small ${h===20?'':'btn-secondary'}" onclick="app.simSetHorizon(20)" id="sim-20">20 ans</button>
-                    <button class="btn btn-small ${h===30?'':'btn-secondary'}" onclick="app.simSetHorizon(30)" id="sim-30">30 ans</button>
-                </div>
-                <div class="grid grid-3 grid-stats" style="margin-bottom:1rem">
-                    <div class="stat-card stat-card-main"><div class="stat-label">Capital final</div><div class="stat-value accent" id="sim-result-capital" style="font-size:1.6rem">0 €</div></div>
-                    <div class="stat-card stat-card-main"><div class="stat-label">Versé</div><div class="stat-value" id="sim-result-verse">0 €</div></div>
-                    <div class="stat-card stat-card-main"><div class="stat-label">Intérêts</div><div style="font-family:'Outfit',sans-serif;font-size:2rem;font-weight:700;color:var(--success)" id="sim-result-interets">0 €</div></div>
-                </div>
-                <div id="sim-conseil" style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;padding:0.75rem;background:var(--bg-secondary);border-radius:12px;border:1px solid var(--border-color)"></div>
-            </div>
-            <div class="modal-footer">
-                <button class="vp-btn-cancel" onclick="document.getElementById('simulateurModal').classList.remove('active');document.getElementById('overlay').classList.remove('active')">Fermer</button>
-            </div>
-        `;
-        modal.classList.add('active');
-        document.getElementById('overlay').classList.add('active');
-        this.refreshSimulateur();
-    },
-
-    simSetHorizon(ans) {
-        this._simHorizon = ans;
-        [5, 10, 20, 30].forEach(n => {
-            const btn = document.getElementById('sim-' + n);
-            if (btn) btn.className = n === ans ? 'btn btn-small' : 'btn btn-small btn-secondary';
-        });
-        this.refreshSimulateur();
-    },
-    refreshSimulateur() {
-        const epargne = parseFloat(document.getElementById('sim-epargne')?.value) || 300;
-        const taux = parseFloat(document.getElementById('sim-taux')?.value) || 6;
-        const horizon = this._simHorizon || 10;
-        const g = id => document.getElementById(id);
-        if (g('sim-epargne-val')) g('sim-epargne-val').textContent = epargne + ' €';
-        if (g('sim-taux-val')) g('sim-taux-val').textContent = taux + '%';
-        const r = taux / 100 / 12;
-        const n = horizon * 12;
-        const capital = r > 0 ? epargne * ((Math.pow(1 + r, n) - 1) / r) : epargne * n;
-        const verse = epargne * n;
-        const interets = capital - verse;
-        if (g('sim-result-capital')) g('sim-result-capital').textContent = this.formatCurrency(capital);
-        if (g('sim-result-verse')) g('sim-result-verse').textContent = this.formatCurrency(verse);
-        if (g('sim-result-interets')) g('sim-result-interets').textContent = this.formatCurrency(interets);
-        const mult = (capital / verse).toFixed(1);
-        const conseil = g('sim-conseil');
-        if (conseil) conseil.innerHTML = `💡 En ${horizon} ans tu multiplies ta mise par <strong>${mult}x</strong>. Les intérêts représentent <strong>${((interets/capital)*100).toFixed(0)}%</strong> du capital — la magie des intérêts composés.`;
-    },
-
     /* ── Bilan : calculs ─────────────────────────────────── */
     _blMois: ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'],
     _blMoisCourt: ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'],
@@ -2389,7 +2310,7 @@ const app = {
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--text-tertiary)">
     <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--text-tertiary);font-weight:700;margin-bottom:.25rem">🧮 Outils</div>
-    <p style="font-size:.79rem;margin:0">Le bouton <strong>🧮 Outils</strong> en haut ouvre une fenêtre pour choisir : <strong>Prévisions</strong> (valeur future de ton PEA), <strong>Calculateur d'ordre</strong> (combien de parts acheter), <strong>Projection retraite</strong> et <strong>Simulateur « Et si… »</strong>.<br>
+    <p style="font-size:.79rem;margin:0">Le bouton <strong>🧮 Outils</strong> en haut ouvre une fenêtre pour choisir : <strong>Projection</strong> (combien vaudra ton PEA, ou combien verser pour un objectif), <strong>Investir ce mois-ci</strong> (les ordres à passer avec ton budget) et <strong>Ma vraie performance</strong> (ton rendement réel par an).<br>
     Chaque outil a son propre bouton <strong>❓ Aide</strong> qui explique comment il marche.</p>
   </div>
 
@@ -3610,7 +3531,7 @@ const app = {
 
     closeAllCatsModal() {
         document.getElementById('modal-all-cats')?.classList.remove('open');
-        const anyOpen = ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats','pea-panel']
+        const anyOpen = ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats']
             .some(mid => document.getElementById(mid)?.classList.contains('open'));
         if (!anyOpen) {
             document.getElementById('budget-modal-overlay')?.classList.remove('open');
@@ -5299,61 +5220,63 @@ const app = {
         setEl('pea-hero-sync-label', 'Mise à jour · ' + new Date(dernier.date).toLocaleDateString('fr-FR'));
     },
 
-    /* ── Outils PEA : fenêtre de choix + aide de chaque outil ── */
+    /* ── Outils PEA : Projection · Investir ce mois-ci · Ma vraie performance ── */
     openPeaOutils() {
         this._blOuvrirModal('modal-pea-outils');
     },
-    togglePeaOutilsMenu() { this.openPeaOutils(); },
 
     choisirOutilPea(outil) {
         this.closeBilanModal('modal-pea-outils');
-        if (outil === 'retraite') this.ouvrirModalRetraite();
-        else if (outil === 'simulateur') this.ouvrirModalSimulateur();
-        else this.openPeaPanel(outil);
+        if (outil === 'investir') this._renderInvestir();
+        else if (outil === 'perf') this._renderPerf();
+        else { outil = 'projection'; this._renderProjection(); }
+        this._blOuvrirModal('modal-outil-' + outil);
+    },
+
+    _po() {
+        if (!this.data.peaOutils) this.data.peaOutils = {};
+        return this.data.peaOutils;
+    },
+    _peaHisto() {
+        return [...(this.data.suiviPEA || [])].filter(p => p.date).sort((a, b) => a.date.localeCompare(b.date));
+    },
+    _eur2(v) {
+        return (Number(v) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+    },
+    _arrondiLisible(v) {
+        const pas = Math.abs(v) >= 100000 ? 1000 : Math.abs(v) >= 10000 ? 100 : 10;
+        return Math.round(v / pas) * pas;
     },
 
     _outilAide: {
-        previsions: `
-<p><b>À quoi ça sert :</b> estimer ce que vaudra ton PEA dans quelques années si tu verses la même somme chaque mois.</p>
+        projection: `
+<p><b>À quoi ça sert :</b> voir ce que pourrait valoir ton PEA plus tard, ou combien verser chaque mois pour atteindre un montant.</p>
+<p><b>« Combien j'aurai ? »</b></p>
 <ol>
-  <li><b>Valeur actuelle</b> : déjà remplie avec ta dernière valeur PEA (tu peux la changer).</li>
-  <li><b>Versement mensuel</b> : ce que tu comptes ajouter chaque mois.</li>
-  <li><b>Rendement annuel</b> : la hausse moyenne espérée par an. Repère courant pour un ETF monde sur le long terme : 5 à 7 %, sans aucune garantie.</li>
-  <li><b>Projection</b> : le nombre d'années, puis « 📊 Calculer ».</li>
+  <li>Choisis le point de départ : la valeur actuelle de ton PEA, ou zéro.</li>
+  <li>Règle le <b>versement par mois</b>, le <b>rendement par an</b> et la <b>durée</b>. Le résultat se met à jour en direct.</li>
 </ol>
-<p><b>Résultat :</b> la valeur finale, le total versé (valeur actuelle + versements) et les gains, c'est-à-dire les intérêts composés. Le graphique se lit par année ou par mois.</p>
-<p><b>💾</b> enregistre le scénario pour le retrouver dans la liste, <b>🗑</b> le supprime.</p>
-<p class="outil-aide-limite">Le calcul suppose un rendement identique chaque mois : la bourse monte et descend, et il ne compte ni frais ni impôts.</p>`,
-        calculateur: `
-<p><b>À quoi ça sert :</b> savoir combien de parts acheter de chaque ETF ou action avec le budget que tu veux investir.</p>
+<p>Tu obtiens une <b>fourchette</b> (rendement −2 et +2 points), ce que tu auras <b>versé</b> et ce que ça aura <b>rapporté</b>, et la valeur en <b>euros d'aujourd'hui</b> (corrigée de l'inflation).</p>
+<p><b>« J'ai un objectif »</b> : choisis un de tes objectifs du Bilan ou un montant et une date. L'outil calcule le versement mensuel nécessaire.</p>
+<p><b>Plafond :</b> on ne peut pas verser plus de 150 000 € sur un PEA. Si tu l'atteins pendant la durée choisie, les versements s'arrêtent dans le calcul.</p>
+<p class="outil-aide-limite">Repère : 5 à 7 %/an pour un ETF monde sur le long terme, sans aucune garantie. Le calcul suppose un rendement identique chaque mois : la bourse monte et descend. Ni frais ni impôts ne sont comptés.</p>`,
+        investir: `
+<p><b>À quoi ça sert :</b> savoir quels ordres passer ce mois-ci avec ton budget, en respectant la répartition que tu as choisie.</p>
 <ol>
-  <li><b>Budget</b> : la somme à investir ce mois-ci.</li>
-  <li><b>Nombre de lignes</b> : combien de titres différents tu achètes.</li>
-  <li>Pour chaque ligne : son nom, sa <b>part du budget en %</b> et son <b>cours</b> actuel (prix d'une part).</li>
+  <li>Une seule fois : ajoute tes lignes (ETF ou actions) et la <b>part visée</b> de chacune en %. Le total doit faire 100 %.</li>
+  <li>Chaque mois : indique ton <b>budget</b> et le <b>cours</b> du jour de chaque ligne.</li>
 </ol>
-<p><b>Résultat :</b> pour chaque ligne, le budget qui lui revient, la <b>quantité</b> à acheter (arrondie à l'unité inférieure : on n'achète pas de fraction de part sur un PEA), le montant réellement investi et ce qui reste. Les totaux sont en bas.</p>
-<p><b>Boutons 60/30/10, 50/30/20…</b> : remplissent les % des 3 premières lignes avec une répartition type.</p>
-<p><b>💾</b> enregistre ton modèle (tes lignes et tes %) pour le recharger chaque mois.</p>
-<p class="outil-aide-limite">Vérifie que les % font 100 % au total, et mets le cours du jour juste avant de passer l'ordre.</p>`,
-        retraite: `
-<p><b>À quoi ça sert :</b> estimer le capital que tu pourrais avoir à l'âge de la retraite.</p>
-<p><b>Point de départ :</b> ton <b>patrimoine total</b> du dernier relevé (tous tes comptes, pas seulement le PEA).</p>
-<ol>
-  <li>Ton <b>âge actuel</b> et l'<b>âge cible</b> de la retraite.</li>
-  <li>L'<b>épargne mensuelle</b> que tu ajoutes chaque mois.</li>
-  <li>Le <b>rendement annuel moyen</b> espéré (6 % si tu ne mets rien).</li>
-</ol>
-<p><b>Résultat :</b> trois scénarios. <b>Réaliste</b> = ton rendement, <b>optimiste</b> = rendement + 2 points, <b>prudent</b> = rendement − 2 points. Le conseil indique combien épargner par mois pour atteindre 500 000 €.</p>
-<p class="outil-aide-limite">Les montants sont en euros d'aujourd'hui sans tenir compte de l'inflation : dans 30 ans, la même somme achètera moins. Ni frais ni impôts ne sont comptés.</p>`,
-        simulateur: `
-<p><b>À quoi ça sert :</b> voir d'un coup d'œil l'effet des intérêts composés, et comparer « et si je mettais plus » ou « et si j'attendais plus longtemps ».</p>
-<ol>
-  <li>Le curseur <b>épargne par mois</b> (de 50 à 2 000 €).</li>
-  <li>Le curseur <b>rendement annuel</b> (de 1 à 12 %).</li>
-  <li>La <b>durée</b> : 5, 10, 20 ou 30 ans.</li>
-</ol>
-<p><b>Résultat :</b> le capital final, ce que tu as versé, les intérêts gagnés, et par combien ta mise est multipliée. Tout se met à jour dès que tu bouges un curseur.</p>
-<p class="outil-aide-limite">Le simulateur part de zéro : il ne tient pas compte de ce que tu as déjà sur ton PEA (pour ça, utilise Prévisions).</p>`
+<p><b>Répartir le budget :</b> le budget est partagé selon tes % et arrondi au nombre de parts entières (pas de fraction de part sur un PEA).</p>
+<p><b>Rééquilibrer :</b> indique aussi ce que tu <b>détiens</b> déjà sur chaque ligne (en €). L'outil achète d'abord ce qui est en dessous de sa cible pour te rapprocher de ta répartition.</p>
+<p><b>Réinvestir le reste :</b> s'il reste assez, l'outil ajoute des parts là où ça déséquilibre le moins.</p>
+<p class="outil-aide-limite">Tout est enregistré automatiquement. Mets les cours juste avant de passer tes ordres : ils bougent dans la journée.</p>`,
+        perf: `
+<p><b>À quoi ça sert :</b> connaître le vrai rendement de ton PEA <b>par an</b>, calculé à partir de ton historique (onglet PEA → saisies).</p>
+<p><b>Rendement par an :</b> il tient compte de la date de chaque versement. Un euro versé il y a un an a eu le temps de rapporter ; un euro versé le mois dernier, presque pas. C'est le chiffre à comparer avec un livret ou un autre placement (méthode du taux de rendement interne).</p>
+<p><b>Plus-value totale :</b> ta valeur moins tout ce que tu as versé, en % de ces versements. Elle ne tient pas compte du temps, c'est pourquoi elle diffère du rendement par an.</p>
+<p><b>Chaque mois :</b> ce que ton PEA a gagné ou perdu, versements retirés.</p>
+<p><b>5 ans :</b> indique la date d'ouverture de ton PEA. Après 5 ans, tu peux retirer sans le fermer et tes gains ne paient plus d'impôt sur le revenu (les prélèvements sociaux restent dus).</p>
+<p class="outil-aide-limite">Le calcul suppose que chaque hausse du « total investi » dans tes saisies est un versement. Sur moins de 3 ans, le rendement par an varie beaucoup d'une année à l'autre.</p>`
     },
 
     toggleOutilAide(outil) {
@@ -5361,49 +5284,389 @@ const app = {
         if (!box) return;
         if (!box.innerHTML.trim()) box.innerHTML = `<div class="outil-aide-titre">❓ Comment ça marche</div>${this._outilAide[outil] || ''}`;
         const open = box.classList.toggle('open');
-        document.querySelectorAll(`[data-aide-for="${outil}"], #pea-panel-aide-btn`).forEach(b => {
-            if (b.id !== 'pea-panel-aide-btn' || this._peaPanelTab === outil) b.classList.toggle('on', open);
-        });
+        document.querySelectorAll(`[data-aide-for="${outil}"]`).forEach(b => b.classList.toggle('on', open));
         if (open) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     },
 
-    /* ── Ouvre le panel slide-in sur un onglet donné ── */
-    openPeaPanel(tab) {
-        document.getElementById('pea-outils-menu')?.classList.remove('open');
-        document.getElementById('pea-outils-btn')?.classList.remove('open-state');
-        const overlay = document.getElementById('pea-panel-overlay');
-        const panel   = document.getElementById('pea-panel');
-        if (!panel || !overlay) return;
-        overlay.classList.add('open');
-        panel.classList.add('open');
-        document.body.style.overflow = 'hidden';
-        this.switchPeaPanelTab(tab, document.getElementById('pea-ptab-' + tab));
+    _segHtml(options, actif, fn) {
+        return `<div class="po-seg">${options.map(([v, l]) => `<button type="button" class="${v === actif ? 'on' : ''}" onclick="${fn}('${v}')">${l}</button>`).join('')}</div>`;
+    },
+    _sliderHtml(cle, label, val, min, max, pas, unite) {
+        return `<div class="po-sl"><div class="po-sl-head"><label for="po-${cle}">${label}</label>
+            <span class="po-sl-val"><input type="number" id="po-${cle}-n" value="${val}" min="${min}" step="${pas}" oninput="app._pjSet('${cle}',this.value,true)" onchange="app._pjSave()">${unite}</span></div>
+            <input type="range" id="po-${cle}" min="${min}" max="${max}" step="${pas}" value="${Math.min(val, max)}" oninput="app._pjSet('${cle}',this.value)" onchange="app._pjSave()"></div>`;
     },
 
-    closePeaPanel() {
-        document.getElementById('pea-panel-overlay')?.classList.remove('open');
-        document.getElementById('pea-panel')?.classList.remove('open');
-        document.body.style.overflow = '';
+    /* ── 📈 Projection ── */
+    _pjEtat() {
+        const po = this._po();
+        if (!po.projection) po.projection = { mode: 'combien', depart: 'pea', mensuel: 200, taux: 6, annees: 15, inflation: 2, objectif: '', cible: 10000, date: '' };
+        return po.projection;
     },
-
-    switchPeaPanelTab(name, el) {
-        this._peaPanelTab = name;
-        document.querySelectorAll('.pea-panel .outil-aide').forEach(b => b.classList.remove('open'));
-        document.getElementById('pea-panel-aide-btn')?.classList.remove('on');
-        ['previsions', 'calculateur', 'retraite', 'simulateur'].forEach(t => {
-            const p = document.getElementById('pea-panel-' + t);
-            if (p) p.style.display = t === name ? 'block' : 'none';
-        });
-        document.querySelectorAll('.pea-panel-tab').forEach(b => b.classList.toggle('active', b === el));
-        const titles = { previsions: '📊 Prévisions', calculateur: '🧮 Calculateur d\'ordre', retraite: '👴 Projection retraite', simulateur: '🎲 Simulateur « Et si… »' };
-        const titleEl = document.getElementById('pea-panel-title');
-        if (titleEl) titleEl.textContent = titles[name] || '🧮 Outils PEA';
-        if (name === 'calculateur') this.genererLignes();
-        if (name === 'previsions' && this.data.suiviPEA.length > 0) {
-            const sorted = [...this.data.suiviPEA].sort((a,b) => new Date(b.date)-new Date(a.date));
-            const el2 = document.getElementById('prev-pea-actuel');
-            if (el2 && !el2.value) el2.value = sorted[0].valeur;
+    _pjSet(cle, val, depuisChamp) {
+        const e = this._pjEtat();
+        e[cle] = Math.max(0, parseFloat(val) || 0);
+        const r = document.getElementById('po-' + cle), n = document.getElementById('po-' + cle + '-n');
+        if (depuisChamp && r) r.value = Math.min(e[cle], +r.max);
+        if (!depuisChamp && n) n.value = e[cle];
+        this._pjResultats();
+    },
+    _pjSave() { this.save(); },
+    _pjChoix(cle, val) {
+        const e = this._pjEtat();
+        e[cle] = val;
+        if (cle === 'objectif' && val) {
+            const o = (this.data.objectifs || []).find(x => String(x.id) === val);
+            if (o) { e.cible = o.cible; e.date = o.dateTarget || e.date; }
         }
+        this.save();
+        this._renderProjection();
+    },
+    _pjDepart() {
+        const e = this._pjEtat();
+        const dernier = this._peaHisto().pop();
+        if (e.depart === 'pea' && dernier) return { valeur: dernier.valeur, verse: dernier.investi || 0 };
+        return { valeur: 0, verse: 0 };
+    },
+    // Valeur après n mois : versement en début de mois, rendement mensuel constant, versements arrêtés au plafond de 150 000 €
+    _pjSimuler(valeur, verse, mensuel, tauxAn, mois, parAn) {
+        const r = tauxAn / 100 / 12;
+        const points = [{ verse, valeur }];
+        let plafondMois = null;
+        for (let i = 1; i <= mois; i++) {
+            const v = Math.min(mensuel, Math.max(0, 150000 - verse));
+            if (v < mensuel && plafondMois === null) plafondMois = i;
+            verse += v;
+            valeur = (valeur + v) * (1 + r);
+            if (parAn && i % 12 === 0) points.push({ verse, valeur });
+        }
+        return { valeur, verse, points, plafondMois };
+    },
+    _renderProjection() {
+        const body = document.getElementById('outil-projection-body');
+        if (!body) return;
+        const e = this._pjEtat();
+        const dernier = this._peaHisto().pop();
+        const departs = [['pea', dernier ? `Mon PEA · ${this._blEur(dernier.valeur)}` : 'Mon PEA'], ['zero', 'Partir de 0']];
+        let controles;
+        if (e.mode === 'objectif') {
+            const objs = (this.data.objectifs || []).filter(o => o.cible > 0 && o.dateTarget);
+            const chips = objs.map(o => `<button type="button" class="po-chip${e.objectif === String(o.id) ? ' on' : ''}" onclick="app._pjChoix('objectif','${app._esc(String(o.id))}')">${app._esc((o.emoji || '🎯') + ' ' + o.nom)}</button>`).join('')
+                + `<button type="button" class="po-chip${!e.objectif ? ' on' : ''}" onclick="app._pjChoix('objectif','')">＋ Autre montant</button>`;
+            controles = `<div class="bl-card po-ctrl">
+                <div class="bl-lbl" style="margin-bottom:.5rem">Ton objectif</div><div class="po-chips">${chips}</div>
+                <div class="po-row2"><label>Montant visé<input type="number" class="po-in" value="${e.cible}" min="0" step="500" oninput="app._pjEtat().cible=Math.max(0,parseFloat(this.value)||0);app._pjEtat().objectif='';app._pjResultats()" onchange="app.save();app._renderProjection()"></label>
+                <label>Pour quand<input type="month" class="po-in" value="${app._esc(e.date || '')}" onchange="app._pjEtat().date=this.value;app._pjEtat().objectif='';app.save();app._renderProjection()"></label></div>
+                ${this._sliderHtml('taux', 'Rendement par an', e.taux, 0, 12, 0.5, ' %')}</div>`;
+        } else {
+            controles = `<div class="bl-card po-ctrl">
+                ${this._sliderHtml('mensuel', 'Versement par mois', e.mensuel, 0, 2000, 10, ' €')}
+                ${this._sliderHtml('taux', 'Rendement par an', e.taux, 0, 12, 0.5, ' %')}
+                ${this._sliderHtml('annees', 'Durée', e.annees, 1, 40, 1, ' ans')}
+                <div class="bl-sub" style="margin-top:.6rem">Repère : 5 à 7 %/an pour un ETF monde sur le long terme, sans garantie.</div></div>`;
+        }
+        body.innerHTML = `<div class="po-top">${this._segHtml([['combien', 'Combien j\'aurai ?'], ['objectif', 'J\'ai un objectif']], e.mode, 'app._pjMode')}
+            <div class="po-chips">${departs.map(([v, l]) => `<button type="button" class="po-chip${e.depart === v ? ' on' : ''}" onclick="app._pjChoix('depart','${v}')">${l}</button>`).join('')}</div></div>
+            <div class="po-grid">${controles}<div id="po-pj-res"></div></div>
+            <div id="po-pj-bas"></div>`;
+        this._pjResultats();
+    },
+    _pjMode(m) { this._pjChoix('mode', m); },
+    _pjResultats() {
+        const res = document.getElementById('po-pj-res'), bas = document.getElementById('po-pj-bas');
+        if (!res || !bas) return;
+        const e = this._pjEtat();
+        const d = this._pjDepart();
+        const eur = v => this._blEur(v);
+        if (e.mode === 'objectif') {
+            const now = new Date();
+            const [ty, tm] = (e.date || '').split('-').map(Number);
+            const mois = ty ? (ty - now.getFullYear()) * 12 + (tm - 1 - now.getMonth()) : 0;
+            if (!e.cible || mois <= 0) {
+                res.innerHTML = `<div class="bl-hero"><div class="bl-lbl">Ton objectif</div><div class="bl-big bl-big-sm">${!e.cible ? 'Indique un montant' : 'Choisis une date future'}</div><div class="bl-sub">pour calculer le versement mensuel nécessaire</div></div>`;
+                bas.innerHTML = '';
+                return;
+            }
+            const besoin = t => {
+                const r = t / 100 / 12;
+                const fv0 = d.valeur * Math.pow(1 + r, mois);
+                if (r === 0) return (e.cible - d.valeur) / mois;
+                return (e.cible - fv0) * r / ((Math.pow(1 + r, mois) - 1) * (1 + r));
+            };
+            const b = besoin(e.taux);
+            const dateLabel = new Date(ty, tm - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+            const tile = (l, v) => `<div class="bl-tile"><div class="bl-lbl">${l}</div><b>${v <= 0 ? '0 €' : eur(Math.ceil(v)) + '/mois'}</b></div>`;
+            res.innerHTML = b <= 0
+                ? `<div class="bl-hero"><div class="bl-lbl">Pour ${eur(e.cible)} en ${dateLabel}</div><div class="bl-big bl-big-sm">Rien à verser</div>
+                    <div class="bl-sub">à ${e.taux} %/an, ton PEA actuel devrait atteindre ≈ ${eur(this._arrondiLisible(this._pjSimuler(d.valeur, d.verse, 0, e.taux, mois).valeur))} à cette date</div></div>`
+                : `<div class="bl-hero"><div class="bl-lbl">Pour ${eur(e.cible)} en ${dateLabel}</div><div class="bl-big">≈ ${eur(Math.ceil(b))} / mois</div>
+                    <div class="bl-sub">${d.valeur > 0 ? `en partant de ton PEA actuel (${eur(d.valeur)}), ` : 'en partant de 0, '}pendant ${mois} mois</div>
+                    <div class="bl-row bl-tiles" style="margin-top:.9rem">${tile(`À ${Math.max(0, e.taux - 2)} %/an`, besoin(Math.max(0, e.taux - 2)))}${tile(`À ${e.taux + 2} %/an`, besoin(e.taux + 2))}</div></div>`;
+            bas.innerHTML = mois < 96 ? `<div class="po-info">⚠ À moins de 8 ans, la bourse peut être en baisse au moment où tu as besoin de l'argent. Pour une somme à date fixe, garde une marge ou sécurise progressivement en approchant de l'échéance.</div>` : '';
+            return;
+        }
+        const mois = Math.round(e.annees * 12);
+        const c = this._pjSimuler(d.valeur, d.verse, e.mensuel, e.taux, mois, true);
+        const bas4 = this._pjSimuler(d.valeur, d.verse, e.mensuel, Math.max(0, e.taux - 2), mois).valeur;
+        const haut = this._pjSimuler(d.valeur, d.verse, e.mensuel, e.taux + 2, mois).valeur;
+        const gains = c.valeur - c.verse;
+        const reel = c.valeur / Math.pow(1 + (e.inflation || 0) / 100, e.annees);
+        const annee = new Date().getFullYear();
+        res.innerHTML = `<div class="bl-hero"><div class="bl-lbl">Dans ${e.annees} an${e.annees > 1 ? 's' : ''} · ${annee + Math.round(e.annees)}</div>
+            <div class="bl-big">≈ ${eur(this._arrondiLisible(c.valeur))}</div>
+            <div class="bl-sub">fourchette ${eur(this._arrondiLisible(bas4))} (${Math.max(0, e.taux - 2)} %) → ${eur(this._arrondiLisible(haut))} (${e.taux + 2} %)</div>
+            <div class="bl-row bl-tiles" style="margin-top:.9rem"><div class="bl-tile"><div class="bl-lbl">Tu auras versé</div><b>${eur(c.verse)}</b></div><div class="bl-tile"><div class="bl-lbl">${gains >= 0 ? 'Gains' : 'Pertes'}</div><b>${eur(Math.abs(gains))}</b></div></div>
+            <div class="bl-sub" style="margin-top:.7rem">≈ <b style="color:#fff">${eur(this._arrondiLisible(reel))}</b> en euros d'aujourd'hui (inflation ${e.inflation || 0} %/an)</div></div>`;
+        // Barres : versé / gagné, une par année (une sur deux au-delà de 20 ans)
+        const pas = c.points.length > 21 ? 2 : 1;
+        const pts = c.points.filter((_, i) => i % pas === 0 || i === c.points.length - 1);
+        const max = Math.max(1, ...pts.map(p => Math.max(p.valeur, p.verse)));
+        const barres = pts.map((p, i) => {
+            const g = Math.max(0, p.valeur - p.verse);
+            const an = annee + (i === pts.length - 1 ? Math.round(e.annees) : i * pas);
+            return `<div class="po-stack-col" title="${an} : versé ${eur(p.verse)} · valeur ${eur(p.valeur)}"><div class="po-stack"><i class="po-g" style="height:${g / max * 100}%"></i><i class="po-v" style="height:${Math.min(p.verse, p.valeur) / max * 100}%"></i></div><span>${i === 0 || i === pts.length - 1 || pts.length <= 12 || i % 2 === 0 ? String(an).slice(2) : ''}</span></div>`;
+        }).join('');
+        const reste = Math.max(0, 150000 - d.verse);
+        let plafond;
+        if (c.plafondMois) plafond = `<div class="po-info">Plafond de 150 000 € de versements atteint en ${annee + Math.floor(c.plafondMois / 12)} : après, tu ne peux plus verser sur ce PEA (les versements s'arrêtent dans le calcul).</div>`;
+        else if (e.mensuel > 0) {
+            const ans = Math.floor(reste / e.mensuel / 12);
+            plafond = `<div class="po-ok">✓ Plafond de versements : il te reste ${eur(reste)}${ans < 100 ? `, soit ${ans} an${ans > 1 ? 's' : ''} à ${eur(e.mensuel)}/mois` : ''}.</div>`;
+        } else plafond = '';
+        bas.innerHTML = `<div class="bl-card"><div class="bl-card-head"><h3>Versé et gagné, année après année</h3><span class="bl-sub">${annee} → ${annee + Math.round(e.annees)}</span></div>
+            <div class="po-stacks">${barres}</div>
+            <div class="po-leg"><span><i style="background:#c5cae9"></i>Ce que tu verses</span><span><i style="background:#6a4ff0"></i>Ce que ça rapporte</span></div>${plafond}</div>`;
+    },
+
+    /* ── 🛒 Investir ce mois-ci ── */
+    _invEtat() {
+        const po = this._po();
+        if (!po.investir) {
+            // Reprend le dernier modèle de l'ancien calculateur s'il existe
+            const m = (this.data.modeles || []).slice(-1)[0];
+            const lignes = m?.lignes?.length
+                ? m.lignes.map(l => ({ id: crypto.randomUUID(), nom: l.nom || '', cible: l.alloc || 0, cours: l.cours || 0, detenu: 0 }))
+                : [{ id: crypto.randomUUID(), nom: '', cible: 100, cours: 0, detenu: 0 }];
+            po.investir = { budget: 0, mode: 'repartir', reinvestir: true, lignes };
+        }
+        return po.investir;
+    },
+    _renderInvestir() {
+        const body = document.getElementById('outil-investir-body');
+        if (!body) return;
+        const e = this._invEtat();
+        const reeq = e.mode === 'reequilibrer';
+        const rows = e.lignes.map((l, i) => `<tr>
+            <td class="po-td-nom"><input class="po-in po-nom" value="${app._esc(l.nom)}" placeholder="Ex. ETF Monde" oninput="app._invSet(${i},'nom',this.value)" onchange="app.save()"></td>
+            <td data-l="Part visée"><span class="po-unit"><input class="po-in" type="number" min="0" max="100" step="1" value="${l.cible || ''}" placeholder="0" oninput="app._invSet(${i},'cible',this.value)" onchange="app.save()"><em>%</em></span></td>
+            <td data-l="Cours"><span class="po-unit"><input class="po-in" type="number" min="0" step="0.01" value="${l.cours || ''}" placeholder="0,00" oninput="app._invSet(${i},'cours',this.value)" onchange="app.save()"><em>€</em></span></td>
+            ${reeq ? `<td data-l="Détenu"><span class="po-unit"><input class="po-in" type="number" min="0" step="1" value="${l.detenu || ''}" placeholder="0" oninput="app._invSet(${i},'detenu',this.value)" onchange="app.save()"><em>€</em></span></td><td class="po-actuel" data-l="Actuel" id="po-act-${i}"></td>` : ''}
+            <td class="po-td-del"><button type="button" class="po-del" onclick="app._invSuppr(${i})" title="Retirer la ligne">✕</button></td></tr>`).join('');
+        body.innerHTML = `<div class="po-top">${this._segHtml([['repartir', 'Répartir le budget'], ['reequilibrer', 'Rééquilibrer']], e.mode, 'app._invMode')}
+            <label class="po-budget">Budget ce mois-ci <span class="po-unit"><input class="po-in" type="number" min="0" step="10" value="${e.budget || ''}" placeholder="0" oninput="app._invSet(-1,'budget',this.value)" onchange="app.save()"><em>€</em></span></label></div>
+            <div class="bl-card po-table-card"><div class="po-table-wrap"><table class="po-table"><thead><tr><th>Ligne</th><th>Part visée</th><th>Cours</th>${reeq ? '<th>Détenu</th><th>Actuel</th>' : ''}<th></th></tr></thead><tbody>${rows}</tbody></table></div>
+            <div class="po-table-foot"><button type="button" class="bl-link" onclick="app._invAjout()">＋ Ajouter une ligne</button><span id="po-inv-total"></span></div></div>
+            <div class="bl-card"><div class="bl-card-head"><h3>Ordres à passer</h3><label class="po-check"><input type="checkbox" ${e.reinvestir ? 'checked' : ''} onchange="app._invEtat().reinvestir=this.checked;app.save();app._invResultats()"> Réinvestir le reste</label></div><div id="po-inv-res"></div></div>`;
+        this._invResultats();
+    },
+    _invMode(m) { this._invEtat().mode = m; this.save(); this._renderInvestir(); },
+    _invSet(i, cle, val) {
+        const e = this._invEtat();
+        if (i < 0) e[cle] = Math.max(0, parseFloat(val) || 0);
+        else e.lignes[i][cle] = cle === 'nom' ? val : Math.max(0, parseFloat(val) || 0);
+        this._invResultats();
+    },
+    _invAjout() {
+        this._invEtat().lignes.push({ id: crypto.randomUUID(), nom: '', cible: 0, cours: 0, detenu: 0 });
+        this.save();
+        this._renderInvestir();
+    },
+    _invSuppr(i) {
+        const e = this._invEtat();
+        e.lignes.splice(i, 1);
+        if (!e.lignes.length) e.lignes.push({ id: crypto.randomUUID(), nom: '', cible: 100, cours: 0, detenu: 0 });
+        this.save();
+        this._renderInvestir();
+    },
+    // Calcule les parts à acheter : répartition simple ou rééquilibrage, puis réinvestissement du reste
+    _invCalcul(e) {
+        const L = e.lignes;
+        const budget = e.budget || 0;
+        const totalCible = L.reduce((s, l) => s + (l.cible || 0), 0);
+        const reeq = e.mode === 'reequilibrer';
+        const detenuTot = reeq ? L.reduce((s, l) => s + (l.detenu || 0), 0) : 0;
+        const cibles = L.map(l => (detenuTot + budget) * (l.cible || 0) / 100);
+        let allocs = L.map(l => budget * (l.cible || 0) / 100);
+        if (reeq) {
+            const deficits = L.map((l, i) => Math.max(0, cibles[i] - (l.detenu || 0)));
+            const somme = deficits.reduce((s, v) => s + v, 0);
+            if (somme > 0) {
+                allocs = somme >= budget
+                    ? deficits.map(d => budget * d / somme)
+                    : deficits.map((d, i) => d + (budget - somme) * (L[i].cible || 0) / (totalCible || 1));
+            }
+        }
+        const q = L.map((l, i) => l.cours > 0 ? Math.floor(allocs[i] / l.cours + 1e-9) : 0);
+        const extra = L.map(() => 0);
+        let reste = budget - q.reduce((s, n, i) => s + n * (L[i].cours || 0), 0);
+        if (e.reinvestir) {
+            // Ajoute une part à la ligne la plus en dessous de sa cible, parmi celles qu'on peut encore payer
+            for (let k = 0; k < 10000; k++) {
+                let best = -1, bestScore = Infinity;
+                L.forEach((l, i) => {
+                    if (!(l.cours > 0) || l.cours > reste + 1e-9 || !(l.cible > 0)) return;
+                    const actuel = (reeq ? (l.detenu || 0) : 0) + (q[i] + extra[i]) * l.cours;
+                    const ref = reeq ? cibles[i] : budget * l.cible / 100;
+                    const score = actuel / (ref || 1);
+                    if (score < bestScore - 1e-9 || (Math.abs(score - bestScore) < 1e-9 && l.cours < L[best].cours)) { bestScore = score; best = i; }
+                });
+                if (best < 0) break;
+                extra[best]++;
+                reste -= L[best].cours;
+            }
+        }
+        return { q, extra, reste: Math.max(0, reste), totalCible, detenuTot, cibles, allocs };
+    },
+    _invResultats() {
+        const out = document.getElementById('po-inv-res');
+        if (!out) return;
+        const e = this._invEtat();
+        const L = e.lignes;
+        const r = this._invCalcul(e);
+        const tot = document.getElementById('po-inv-total');
+        if (tot) {
+            const ok = Math.abs(r.totalCible - 100) < 0.01;
+            tot.className = ok ? 'po-total ok' : 'po-total warn';
+            tot.textContent = ok ? 'Total : 100 % ✓' : `Total : ${Math.round(r.totalCible * 10) / 10} % — il faut 100 %`;
+        }
+        if (e.mode === 'reequilibrer') L.forEach((l, i) => {
+            const el = document.getElementById('po-act-' + i);
+            if (!el) return;
+            const pct = r.detenuTot > 0 ? (l.detenu || 0) / r.detenuTot * 100 : 0;
+            el.textContent = r.detenuTot > 0 ? Math.round(pct) + ' %' : '—';
+            el.className = 'po-actuel' + (r.detenuTot > 0 && Math.abs(pct - (l.cible || 0)) >= 3 ? ' ecart' : '');
+        });
+        if (!e.budget) { out.innerHTML = '<div class="bl-sub">Indique ton budget du mois pour voir les ordres.</div>'; return; }
+        let investi = 0;
+        const lignes = L.map((l, i) => {
+            const n = r.q[i] + r.extra[i];
+            const montant = n * (l.cours || 0);
+            investi += montant;
+            const nom = app._esc(l.nom || `Ligne ${i + 1}`);
+            let note = '';
+            if (!(l.cours > 0)) note = 'indique le cours';
+            else if (!n && e.mode === 'reequilibrer' && r.allocs[i] < 0.01) note = 'déjà au-dessus de sa cible';
+            else if (!n && !(l.cible > 0)) note = 'part visée à 0 %';
+            else if (!n) note = 'cours trop élevé pour ce budget';
+            else if (r.extra[i]) note = `+${r.extra[i]} avec le reste`;
+            return `<div class="po-order"><span class="po-q">${n ? '×' + n : '—'}</span><span class="po-n">${nom}${note ? ` <span class="bl-sub">${note}</span>` : ''}</span><span class="po-v">${this._eur2(montant)}</span></div>`;
+        }).join('');
+        let apres = '';
+        if (e.mode === 'reequilibrer') {
+            const totApres = r.detenuTot + investi;
+            if (totApres > 0) apres = ' · après achat : ' + L.map((l, i) => Math.round(((l.detenu || 0) + (r.q[i] + r.extra[i]) * (l.cours || 0)) / totApres * 100) + ' %').join(' / ');
+        }
+        out.innerHTML = lignes + `<div class="bl-sub" style="margin-top:.6rem">Investi ${this._eur2(investi)} · il reste <b>${this._eur2(e.budget - investi)}</b>${apres}</div>`;
+    },
+
+    /* ── 🎯 Ma vraie performance ── */
+    // Taux de rendement interne annuel : versements = hausses du total investi entre deux saisies
+    _perfCalcul() {
+        const h = this._peaHisto();
+        if (h.length < 2) return null;
+        const t0 = new Date(h[0].date);
+        const jours = d => (new Date(d) - t0) / 86400000;
+        const flux = [[0, -h[0].valeur]];
+        let plusGrosVersement = null;
+        for (let i = 1; i < h.length; i++) {
+            const v = (h[i].investi || 0) - (h[i - 1].investi || 0);
+            if (v !== 0) flux.push([jours(h[i].date), -v]);
+            if (v > 0 && (!plusGrosVersement || v > plusGrosVersement.montant)) plusGrosVersement = { montant: v, date: h[i].date };
+        }
+        const fin = h[h.length - 1];
+        const duree = jours(fin.date);
+        flux.push([duree, fin.valeur]);
+        let tri = null;
+        if (duree >= 60) {
+            const van = r => flux.reduce((s, [t, f]) => s + f / Math.pow(1 + r, t / 365), 0);
+            let lo = -0.99, hi = 10;
+            if (van(lo) * van(hi) < 0) {
+                for (let k = 0; k < 200; k++) { const m = (lo + hi) / 2; if (van(m) > 0) lo = m; else hi = m; }
+                tri = (lo + hi) / 2 * 100;
+            }
+        }
+        const gainHorsVersements = fin.valeur - h[0].valeur - ((fin.investi || 0) - (h[0].investi || 0));
+        const parMois = {};
+        for (let i = 1; i < h.length; i++) {
+            const g = h[i].valeur - h[i - 1].valeur - ((h[i].investi || 0) - (h[i - 1].investi || 0));
+            const k = h[i].date.slice(0, 7);
+            parMois[k] = (parMois[k] || 0) + g;
+        }
+        return { h, debut: h[0], fin, duree, tri, gainHorsVersements, parMois, plusGrosVersement };
+    },
+    _renderPerf() {
+        const body = document.getElementById('outil-perf-body');
+        if (!body) return;
+        const p = this._perfCalcul();
+        if (!p) {
+            body.innerHTML = `<div class="bl-hero"><div class="bl-lbl">Ma vraie performance</div><div class="bl-big bl-big-sm">Il faut au moins 2 saisies</div><div class="bl-sub">Ajoute la valeur de ton PEA chaque mois (onglet PEA → Saisie manuelle) : le rendement se calculera tout seul.</div></div>${this._perfCinqAns(null)}`;
+            return;
+        }
+        const eur = v => this._blEur(v);
+        const signe = v => (v >= 0 ? '+' : '−') + Math.abs(v).toLocaleString('fr-FR', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+        const mois = Math.max(1, Math.round(p.duree / 30.44));
+        const pv = p.fin.valeur - (p.fin.investi || 0);
+        const pvPct = p.fin.investi > 0 ? pv / p.fin.investi * 100 : 0;
+        const debutLabel = new Date(p.debut.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+        const hero = `<div class="bl-hero"><div class="bl-lbl">Rendement réel de ton PEA · depuis le ${debutLabel}</div>
+            <div class="bl-big">${p.tri == null ? '—' : signe(p.tri) + ' % par an'}</div>
+            <div class="bl-sub">${p.tri == null ? 'Il faut au moins 2 mois d\'historique pour calculer un rendement par an.' : `sur ${mois} mois · ton argent a ${p.gainHorsVersements >= 0 ? 'rapporté' : 'perdu'} <b style="color:#fff">${eur(Math.abs(p.gainHorsVersements))}</b> ${p.gainHorsVersements >= 0 ? 'en plus de' : 'par rapport à'} tes versements`}</div>
+            <div class="bl-row bl-tiles" style="margin-top:.9rem"><div class="bl-tile"><div class="bl-lbl">Versé au total</div><b>${eur(p.fin.investi || 0)}</b></div><div class="bl-tile"><div class="bl-lbl">Plus-value totale</div><b>${pv >= 0 ? '+' : '−'}${eur(Math.abs(pv))} · ${signe(pvPct)} %</b></div></div></div>`;
+        let explication = '';
+        if (p.tri != null) {
+            const gros = p.plusGrosVersement;
+            const grosTxt = gros && gros.montant > (p.fin.investi || 0) * 0.15
+                ? `, même les ${eur(gros.montant)} versés en ${new Date(gros.date).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}` : '';
+            explication = `<div class="bl-card"><h3>Pourquoi ${signe(p.tri)} % et pas ${signe(pvPct)} % ?</h3>
+                <div class="bl-sub po-txt">Les ${signe(pvPct)} % comparent ta plus-value à <b>tout</b> ce que tu as versé${grosTxt}. Le rendement par an tient compte du temps pendant lequel chaque euro est resté investi : c'est le chiffre à comparer avec un livret ou un autre placement.</div>
+                ${mois < 36 ? `<div class="po-info">Sur ${mois} mois, ce chiffre bouge beaucoup : une bonne ou une mauvaise année le fait varier fortement. Il devient plus fiable après 3 à 5 ans.</div>` : ''}</div>`;
+        }
+        const cles = Object.keys(p.parMois).sort().slice(-24);
+        let barres = '';
+        if (cles.length) {
+            const vals = cles.map(k => p.parMois[k]);
+            const max = Math.max(1, ...vals.map(Math.abs));
+            const iBest = vals.indexOf(Math.max(...vals)), iWorst = vals.indexOf(Math.min(...vals));
+            const nomMois = k => new Date(k + '-01T12:00').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+            barres = `<div class="bl-card"><div class="bl-card-head"><h3>Gagné ou perdu chaque mois</h3><span class="bl-sub">versements retirés</span></div>
+                <div class="po-bars">${cles.map((k, i) => {
+                    const v = vals[i];
+                    return `<div class="po-bar-col" title="${nomMois(k)} : ${v >= 0 ? '+' : '−'}${eur(Math.abs(v))}"><div class="po-bar-haut">${v > 0 ? `<i class="pos" style="height:${v / max * 100}%"></i>` : ''}</div><div class="po-bar-bas">${v < 0 ? `<i class="neg" style="height:${-v / max * 100}%"></i>` : ''}</div><span>${this._blMoisCourt[+k.slice(5, 7) - 1].charAt(0)}</span></div>`;
+                }).join('')}</div>
+                <div class="bl-sub" style="margin-top:.5rem">Meilleur mois : ${nomMois(cles[iBest])} (${vals[iBest] >= 0 ? '+' : '−'}${eur(Math.abs(vals[iBest]))})${vals[iWorst] < 0 ? ` · pire : ${nomMois(cles[iWorst])} (−${eur(Math.abs(vals[iWorst]))})` : ''}</div></div>`;
+        }
+        body.innerHTML = hero + explication + barres + this._perfCinqAns(p);
+    },
+    _perfCinqAns(p) {
+        const po = this._po();
+        const ouverture = po.dateOuverture || '';
+        let titre, texte;
+        if (ouverture) {
+            const d = new Date(ouverture + 'T12:00');
+            const cinq = new Date(d); cinq.setFullYear(d.getFullYear() + 5);
+            const now = new Date();
+            if (cinq <= now) { titre = '✓ Ton PEA a plus de 5 ans'; texte = 'Tu peux retirer sans le fermer, et tes gains ne paient plus d\'impôt sur le revenu (les prélèvements sociaux restent dus).'; }
+            else {
+                const m = (cinq.getFullYear() - now.getFullYear()) * 12 + cinq.getMonth() - now.getMonth();
+                titre = `5 ans de ton PEA : ${cinq.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+                texte = `Dans ${m >= 12 ? Math.floor(m / 12) + ' an' + (m >= 24 ? 's' : '') + (m % 12 ? ' et ' + (m % 12) + ' mois' : '') : m + ' mois'}. Après cette date, tu peux retirer sans fermer le PEA et tes gains ne paient plus d'impôt sur le revenu (les prélèvements sociaux restent dus).`;
+            }
+        } else {
+            titre = '5 ans de ton PEA';
+            texte = 'Indique la date d\'ouverture de ton PEA (elle figure sur ton espace en ligne ou ton contrat) pour savoir quand il aura 5 ans.';
+        }
+        return `<div class="bl-card po-cinq"><span class="po-cinq-ico">🗓️</span><div style="flex:1;min-width:0"><b>${titre}</b><div class="bl-sub" style="margin-top:.2rem">${texte}</div>
+            <label class="po-date">Date d'ouverture <input type="date" class="po-in" value="${app._esc(ouverture)}" max="${this._jourLocal()}" onchange="app._po().dateOuverture=this.value;app.save();app._renderPerf()"></label></div></div>`;
     },
 
     /* ── Toggle affichage carte portefeuille ── */
@@ -5681,134 +5944,6 @@ const app = {
         }
     },
 
-    calculerPrevisionsPEA() {
-        const actuel = parseFloat(document.getElementById('prev-pea-actuel').value) || 0;
-        const mensuel = parseFloat(document.getElementById('prev-pea-mensuel').value) || 0;
-        const taux = parseFloat(document.getElementById('prev-pea-taux').value) / 100 || 0;
-        const annees = parseInt(document.getElementById('prev-pea-annees').value) || 10;
-
-        const tauxMensuel = taux / 12;
-        const mois = annees * 12;
-
-        let valeur = actuel;
-        const historiquePrev = [{periode: 0, valeur: actuel, investi: 0}];
-        let totalVerse = 0;
-
-        for (let i = 1; i <= mois; i++) {
-            totalVerse += mensuel;
-            valeur = (valeur + mensuel) * (1 + tauxMensuel);
-            historiquePrev.push({
-                periode: i,
-                valeur: valeur,
-                investi: actuel + totalVerse
-            });
-        }
-
-        const gains = valeur - (actuel + totalVerse);
-
-        document.getElementById('prev-pea-final').textContent = this.formatCurrency(valeur);
-        document.getElementById('prev-pea-verse').textContent = this.formatCurrency(actuel + totalVerse);
-        document.getElementById('prev-pea-gains').textContent = this.formatCurrency(gains);
-        document.getElementById('prev-pea-results').style.display = 'block';
-
-        this.chartPrevCompare(historiquePrev, annees);
-    },
-
-    calculerPrevisionsPatrimoine() {
-        const actuel = parseFloat(document.getElementById('prev-pat-actuel').value) || 0;
-        const mensuel = parseFloat(document.getElementById('prev-pat-mensuel').value) || 0;
-        const taux = parseFloat(document.getElementById('prev-pat-taux').value) / 100 || 0;
-        const annees = parseInt(document.getElementById('prev-pat-annees').value) || 10;
-
-        const tauxMensuel = taux / 12;
-        const mois = annees * 12;
-
-        let valeur = actuel;
-        const historique = [{mois: 0, valeur: actuel}];
-        let totalEpargne = 0;
-
-        for (let i = 1; i <= mois; i++) {
-            totalEpargne += mensuel;
-            valeur = (valeur + mensuel) * (1 + tauxMensuel);
-            historique.push({mois: i, valeur: valeur});
-        }
-
-        const interets = valeur - (actuel + totalEpargne);
-
-        document.getElementById('prev-pat-final').textContent = this.formatCurrency(valeur);
-        document.getElementById('prev-pat-epargne').textContent = this.formatCurrency(actuel + totalEpargne);
-        document.getElementById('prev-pat-interets').textContent = this.formatCurrency(interets);
-        document.getElementById('prev-pat-results').style.display = 'block';
-
-        this.chartPrevPat(historique, annees);
-        this.chartCompare();
-    },
-
-    genererLignes() {
-        const n = parseInt(document.getElementById('calc-lignes').value) || 3;
-        const tbody = document.getElementById('calc-body');
-
-        tbody.innerHTML = Array.from({length: n}, (_, i) => `
-            <tr>
-                <td><input type="text" class="table-input" id="cn-${i}" placeholder="Action"></td>
-                <td><input type="number" class="table-input" id="ca-${i}" value="${i === 0 ? 40 : 30}" min="0" max="100" onchange="app.calculer()"></td>
-                <td id="cb-${i}">0 €</td>
-                <td><input type="number" class="table-input" id="cc-${i}" placeholder="0.00" step="0.01" onchange="app.calculer()"></td>
-                <td id="cq-${i}">0</td>
-                <td id="ci-${i}">0 €</td>
-                <td id="cr-${i}">0 €</td>
-            </tr>
-        `).join('');
-    },
-
-    calculer() {
-        const budget = parseFloat(document.getElementById('calc-budget').value) || 0;
-        const n = parseInt(document.getElementById('calc-lignes').value) || 3;
-
-        let totalInvesti = 0;
-
-        for (let i = 0; i < n; i++) {
-            const alloc = parseFloat(document.getElementById('ca-' + i).value) || 0;
-            const cours = parseFloat(document.getElementById('cc-' + i).value) || 0;
-
-            const budgetLigne = (budget * alloc) / 100;
-            const quantite = cours > 0 ? Math.floor(budgetLigne / cours) : 0;
-            const investi = quantite * cours;
-            const reste = budgetLigne - investi;
-
-            document.getElementById('cb-' + i).textContent = this.formatCurrency(budgetLigne);
-            document.getElementById('cq-' + i).textContent = quantite;
-            document.getElementById('ci-' + i).textContent = this.formatCurrency(investi);
-            document.getElementById('cr-' + i).textContent = this.formatCurrency(reste);
-
-            totalInvesti += investi;
-        }
-
-        document.getElementById('calc-total').textContent = this.formatCurrency(budget);
-        document.getElementById('calc-investi').textContent = this.formatCurrency(totalInvesti);
-        document.getElementById('calc-reste').textContent = this.formatCurrency(budget - totalInvesti);
-    },
-
-    allocation(type) {
-        const allocations = {
-            conservateur: [60, 30, 10],
-            equilibre: [50, 30, 20],
-            dynamique: [40, 40, 20],
-            agressif: [30, 30, 40]
-        };
-
-        const alloc = allocations[type];
-        document.getElementById('calc-lignes').value = alloc.length;
-        this.genererLignes();
-
-        alloc.forEach((val, i) => {
-            document.getElementById('ca-' + i).value = val;
-        });
-
-        this.calculer();
-        this.notify('Allocation ' + type + ' appliquée', 'success');
-    },
-
     animateValue(el, target, isCurrency = true, duration = 700) {
         if (!el) return;
         el.classList.add('animating');
@@ -5925,8 +6060,6 @@ const app = {
             { id: 'pea-saisie',     label: 'Mise à jour PEA',              sub: 'Saisie valeur & investi' },
             { id: 'pea-lignes',     label: '📋 Lignes du Portefeuille',    sub: 'Actions & plus-values' },
             { id: 'pea-graphique',  label: 'Évolution PEA',                sub: 'Graphique valeur vs investi' },
-            { id: 'pea-retraite',   label: '👴 Projection Retraite',       sub: 'Simulateur retraite' },
-            { id: 'pea-simulateur', label: '🎲 Simulateur "Et si…"',       sub: 'Simulation de scénarios' },
             { id: 'pea-historique', label: '📋 Historique PEA',            sub: 'Entrées historiques' },
         ],
         'patrimoine': [
@@ -6266,7 +6399,6 @@ const app = {
         'chart-depenses-budget':[{label:'Barres — couleur début'},{label:'Barres — couleur fin'}],
         'chart-pea':           [{label:'Valeur PEA'},{label:'Investi'}],
         'chart-benchmark':     [{label:'Mon PEA'},{label:'MSCI World'},{label:'S&P 500'}],
-        'chart-prev-compare':  [{label:'Objectif (prévisionnel)'},{label:'PEA Réel'}],
         'chart-heatmap':       [{label:'Couleur de la heatmap'}],
     },
 
@@ -6275,7 +6407,6 @@ const app = {
         'chart-depenses-budget':'Dépenses vs Budget',
         'chart-pea':           'Évolution PEA',
         'chart-benchmark':     'Benchmark vs Indices',
-        'chart-prev-compare':  'Comparaison PEA',
         'chart-pat-evol':      'Évolution par compte',
         'chart-heatmap':       '🌡 Heatmap annuelle',
     },
@@ -6301,7 +6432,6 @@ const app = {
             'chart-pea':             () => this.chartPEA(),
             'chart-pat-evol':        () => this.chartPatEv(),
             'chart-benchmark':       () => this.refreshBenchmark(),
-            'chart-prev-compare':    () => { this.calculerPrevisionsPEA && this.calculerPrevisionsPEA(); },
             'chart-heatmap':         () => this.applyHeatmapColor(),
         };
         const fn = map[chartId];
@@ -6463,7 +6593,6 @@ const app = {
             'chart-depenses-budget':[c.primary, c.secondary],
             'chart-pea':           [c.primary, c.secondary],
             'chart-benchmark':     [c.primary, c.secondary, c.tertiary],
-            'chart-prev-compare':  [c.primary, c.success],
             'chart-heatmap':       ['#3f51b5'],
         };
         if (map[chartId]) return map[chartId];
@@ -6473,7 +6602,7 @@ const app = {
 
     _refreshAllChartColorBtns() {
         const ids = ['chart-patrimoine','chart-depenses-budget','chart-pea','chart-benchmark',
-                     'chart-pat-evol','chart-prev-compare','chart-heatmap'];
+                     'chart-pat-evol','chart-heatmap'];
         ids.forEach(id => this._updateChartColorBtn(id));
     },
 
@@ -7222,287 +7351,6 @@ const app = {
     },
 
     vuePrevision: 'annee',
-
-    chargerScenario() {
-        const select = document.getElementById('select-scenario');
-        const id = select.value;
-
-        if (!id) {
-            document.getElementById('prev-scenario-nom').value = '';
-            document.getElementById('prev-pea-actuel').value = '';
-            document.getElementById('prev-pea-mensuel').value = '';
-            document.getElementById('prev-pea-taux').value = '';
-            document.getElementById('prev-pea-annees').value = '';
-            return;
-        }
-
-        const scenario = this.data.scenarios.find(s => s.id == id);
-        if (!scenario) return;
-
-        document.getElementById('prev-scenario-nom').value = scenario.nom;
-        document.getElementById('prev-pea-actuel').value = scenario.actuel;
-        document.getElementById('prev-pea-mensuel').value = scenario.mensuel;
-        document.getElementById('prev-pea-taux').value = scenario.taux;
-        document.getElementById('prev-pea-annees').value = scenario.annees;
-    },
-
-    sauvegarderScenario() {
-        const nom = document.getElementById('prev-scenario-nom').value.trim();
-        if (!nom) {
-            this.notify('Nom du scénario requis', 'error');
-            return;
-        }
-
-        const scenario = {
-            id: crypto.randomUUID(),
-            nom: nom,
-            actuel: parseFloat(document.getElementById('prev-pea-actuel').value) || 0,
-            mensuel: parseFloat(document.getElementById('prev-pea-mensuel').value) || 0,
-            taux: parseFloat(document.getElementById('prev-pea-taux').value) || 0,
-            annees: parseInt(document.getElementById('prev-pea-annees').value) || 10
-        };
-
-        const select = document.getElementById('select-scenario');
-        const existingId = select.value;
-
-        if (existingId) {
-            const index = this.data.scenarios.findIndex(s => s.id == existingId);
-            if (index !== -1) {
-                scenario.id = parseInt(existingId);
-                this.data.scenarios[index] = scenario;
-            }
-        } else {
-            this.data.scenarios.push(scenario);
-        }
-
-        this.save();
-        this.updateScenariosSelect();
-        this.notify('Scénario sauvegardé', 'success');
-    },
-
-    supprimerScenario() {
-        const select = document.getElementById('select-scenario');
-        const id = select.value;
-
-        if (!id) {
-            this.notify('Aucun scénario sélectionné', 'error');
-            return;
-        }
-
-        this.showModal(
-            'Supprimer le scénario',
-            'Voulez-vous vraiment supprimer ce scénario ?',
-            () => {
-                this.data.scenarios = this.data.scenarios.filter(s => s.id != id);
-                this.save();
-                this.updateScenariosSelect();
-                this.chargerScenario();
-                this.notify('Scénario supprimé', 'success');
-            }
-        );
-    },
-
-    updateScenariosSelect() {
-        const select = document.getElementById('select-scenario');
-        if (!select) return;
-        select.innerHTML = '<option value="">-- Nouveau scénario --</option>' +
-            this.data.scenarios.map(s => `<option value="${s.id}">${app._esc(s.nom)}</option>`).join('');
-    },
-
-    switchVuePrevision(vue) {
-        this.vuePrevision = vue;
-        document.getElementById('btn-vue-annee').className = vue === 'annee' ? 'btn btn-small' : 'btn btn-small btn-secondary';
-        document.getElementById('btn-vue-mois').className = vue === 'mois' ? 'btn btn-small' : 'btn btn-small btn-secondary';
-        this.calculerPrevisionsPEA();
-    },
-
-    chartPrevCompare(historiquePrev, annees) {
-        const peaReel = [...this.data.suiviPEA].sort((a, b) => new Date(a.date) - new Date(b.date));
-
-        let labels, dataPrev, dataReel;
-
-        if (this.vuePrevision === 'annee') {
-            labels = [];
-            dataPrev = [];
-            dataReel = [];
-
-            for (let i = 0; i <= annees; i++) {
-                labels.push('Année ' + i);
-                const idx = i * 12;
-                dataPrev.push(historiquePrev[idx] ? historiquePrev[idx].valeur : null);
-
-                if (peaReel.length > 0 && i === 0) {
-                    dataReel.push(peaReel[peaReel.length - 1].valeur);
-                } else {
-                    dataReel.push(null);
-                }
-            }
-        } else {
-            labels = [];
-            dataPrev = [];
-            dataReel = [];
-
-            const totalMois = annees * 12;
-            for (let i = 0; i <= totalMois; i++) {
-                labels.push('Mois ' + i);
-                dataPrev.push(historiquePrev[i] ? historiquePrev[i].valeur : null);
-
-                if (peaReel.length > 0 && i === 0) {
-                    dataReel.push(peaReel[peaReel.length - 1].valeur);
-                } else {
-                    dataReel.push(null);
-                }
-            }
-        }
-
-        if (this.charts.prevCompare) this.charts.prevCompare.destroy();
-        const c = this.getChartColors();
-        const _ccPC = this.getChartCustomColors('chart-prev-compare');
-        const _pc0 = _ccPC?.[0] || c.primary;
-        const _pc1 = _ccPC?.[1] || c.success;
-        const _selfPC = this;
-        const ctx = document.getElementById('chart-prev-compare').getContext('2d');
-        this.charts.prevCompare = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'Objectif (Prévisionnel)',
-                        data: dataPrev,
-                        borderColor: _pc0,
-                        backgroundColor: (ctx2) => { const g=ctx2.chart.ctx.createLinearGradient(0,0,0,300); g.addColorStop(0,_selfPC._toRgba(_pc0,0.28)); g.addColorStop(1,_selfPC._toRgba(_pc0,0)); return g; },
-
-                        tension: 0.4,
-                        fill: true,
-                        borderWidth: 3
-                    },
-                    {
-                        label: 'PEA Réel',
-                        data: dataReel,
-                        borderColor: c.success,
-                        backgroundColor: _selfPC._toRgba(c.success, 0.2),
-                        tension: 0.4,
-                        pointRadius: 6,
-                        pointBackgroundColor: c.success,
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 2
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'top' },
-                    title: {
-                        display: true,
-                        text: 'Êtes-vous sur la bonne voie ?'
-                    }
-                }
-            }
-        });
-    },
-
-    chargerModele() {
-        const select = document.getElementById('select-modele');
-        const id = select.value;
-
-        if (!id) {
-            document.getElementById('calc-nom-modele').value = '';
-            document.getElementById('calc-lignes').value = 3;
-            this.genererLignes();
-            return;
-        }
-
-        const modele = this.data.modeles.find(m => m.id == id);
-        if (!modele) return;
-
-        document.getElementById('calc-nom-modele').value = modele.nom;
-        document.getElementById('calc-lignes').value = modele.lignes.length;
-
-        this.genererLignes();
-
-        setTimeout(() => {
-            modele.lignes.forEach((ligne, i) => {
-                document.getElementById('cn-' + i).value = ligne.nom;
-                document.getElementById('ca-' + i).value = ligne.alloc;
-                document.getElementById('cc-' + i).value = ligne.cours;
-            });
-            this.calculer();
-        }, 100);
-    },
-
-    sauvegarderModele() {
-        const nom = document.getElementById('calc-nom-modele').value.trim();
-        if (!nom) {
-            this.notify('Nom du modèle requis', 'error');
-            return;
-        }
-
-        const n = parseInt(document.getElementById('calc-lignes').value) || 3;
-        const lignes = [];
-
-        for (let i = 0; i < n; i++) {
-            lignes.push({
-                nom: document.getElementById('cn-' + i).value || '',
-                alloc: parseFloat(document.getElementById('ca-' + i).value) || 0,
-                cours: parseFloat(document.getElementById('cc-' + i).value) || 0
-            });
-        }
-
-        const modele = {
-            id: crypto.randomUUID(),
-            nom: nom,
-            lignes: lignes
-        };
-
-        const select = document.getElementById('select-modele');
-        const existingId = select.value;
-
-        if (existingId) {
-            const index = this.data.modeles.findIndex(m => m.id == existingId);
-            if (index !== -1) {
-                modele.id = parseInt(existingId);
-                this.data.modeles[index] = modele;
-            }
-        } else {
-            this.data.modeles.push(modele);
-        }
-
-        this.save();
-        this.updateModelesSelect();
-        this.notify('Modèle sauvegardé', 'success');
-    },
-
-    supprimerModele() {
-        const select = document.getElementById('select-modele');
-        const id = select.value;
-
-        if (!id) {
-            this.notify('Aucun modèle sélectionné', 'error');
-            return;
-        }
-
-        this.showModal(
-            'Supprimer le modèle',
-            'Voulez-vous vraiment supprimer ce modèle ?',
-            () => {
-                this.data.modeles = this.data.modeles.filter(m => m.id != id);
-                this.save();
-                this.updateModelesSelect();
-                this.chargerModele();
-                this.notify('Modèle supprimé', 'success');
-            }
-        );
-    },
-
-    updateModelesSelect() {
-        const select = document.getElementById('select-modele');
-        if (!select) return;
-        select.innerHTML = '<option value="">-- Nouveau modèle --</option>' +
-            this.data.modeles.map(m => `<option value="${m.id}">${app._esc(m.nom)}</option>`).join('');
-    },
 
     refreshScore() {
         const now = new Date();
@@ -9054,92 +8902,6 @@ const app = {
         });
     },
 
-    ouvrirModalRetraite() {
-        let modal = document.getElementById('retraiteModal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'retraiteModal';
-            modal.className = 'modal';
-            document.body.appendChild(modal);
-        }
-        modal.innerHTML = `
-            <div class="modal-header outil-modal-head"><h2 class="modal-title">👴 Projection Retraite</h2><button class="outil-aide-btn" data-aide-for="retraite" onclick="app.toggleOutilAide('retraite')">❓ Aide</button></div>
-            <div class="modal-body">
-                <div class="outil-aide" id="outil-aide-retraite"></div>
-                <div class="grid grid-2">
-                    <div class="form-group">
-                        <label class="form-label">Âge actuel</label>
-                        <input type="number" class="form-input" id="ret-age" placeholder="28" min="18" max="65">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Âge cible retraite</label>
-                        <input type="number" class="form-input" id="ret-age-cible" placeholder="65" min="40" max="80">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Épargne mensuelle (€)</label>
-                        <input type="number" class="form-input" id="ret-epargne" placeholder="500" step="50">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Rendement annuel moyen (%)</label>
-                        <input type="number" class="form-input" id="ret-taux" placeholder="6" step="0.5">
-                    </div>
-                </div>
-                <button class="btn btn-primary" onclick="app.calculerRetraite()" style="width:100%;margin-top:0.5rem">📊 Calculer</button>
-                <div id="retraite-results" style="display:none;margin-top:1.5rem">
-                    <div class="grid grid-3 grid-stats" style="margin-bottom:1rem">
-                        <div class="stat-card stat-card-main"><div class="stat-label">Optimiste (+2%)</div><div class="stat-value accent" id="ret-optimiste">0 €</div></div>
-                        <div class="stat-card stat-card-main"><div class="stat-label">Réaliste</div><div class="stat-value" id="ret-realiste">0 €</div></div>
-                        <div class="stat-card stat-card-main"><div class="stat-label">Basse (−2%)</div><div class="stat-value" id="ret-basse">0 €</div></div>
-                    </div>
-                    <div style="padding:1rem;background:var(--bg-secondary);border-radius:12px;border:1px solid var(--border-color)" id="ret-conseil"></div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="vp-btn-cancel" onclick="document.getElementById('retraiteModal').classList.remove('active');document.getElementById('overlay').classList.remove('active')">Fermer</button>
-            </div>
-        `;
-        modal.classList.add('active');
-        document.getElementById('overlay').classList.add('active');
-    },
-
-    calculerRetraite() {
-        const age = parseInt(document.getElementById('ret-age').value) || 28;
-        const ageCible = parseInt(document.getElementById('ret-age-cible').value) || 65;
-        const epargne = parseFloat(document.getElementById('ret-epargne').value) || 0;
-        const taux = parseFloat(document.getElementById('ret-taux').value) / 100 || 0.06;
-        const annees = Math.max(1, ageCible - age);
-        const patrimoineActuel = this.data.patrimoine.length > 0 ?
-            [...this.data.patrimoine].sort((a, b) => { const mc = b.mois.localeCompare(a.mois); return mc !== 0 ? mc : (b.date||b.mois).localeCompare(a.date||a.mois); })[0].total : 0;
-
-        const calculer = (t) => {
-            const tm = t / 12;
-            const mois = annees * 12;
-            let val = patrimoineActuel;
-            for (let i = 0; i < mois; i++) {
-                val = (val + epargne) * (1 + tm);
-            }
-            return val;
-        };
-
-        const realiste = calculer(taux);
-        const optimiste = calculer(taux + 0.02);
-        const basse = calculer(Math.max(0, taux - 0.02));
-
-        document.getElementById('ret-optimiste').textContent = this.formatCurrency(optimiste);
-        document.getElementById('ret-realiste').textContent = this.formatCurrency(realiste);
-        document.getElementById('ret-basse').textContent = this.formatCurrency(basse);
-        document.getElementById('retraite-results').style.display = 'block';
-
-        const mensuelNecessaire = 500000 > realiste ?
-            Math.ceil((500000 - patrimoineActuel) / ((Math.pow(1 + taux/12, annees*12) - 1) / (taux/12) || 1)) : 0;
-        document.getElementById('ret-conseil').innerHTML = `
-            <strong>💡 Conseil :</strong> Avec votre patrimoine actuel de <strong>${this.formatCurrency(patrimoineActuel)}</strong> et
-            ${epargne > 0 ? `une épargne de <strong>${this.formatCurrency(epargne)}/mois</strong>` : 'aucune épargne mensuelle'},
-            vous accumuleriez environ <strong>${this.formatCurrency(realiste)}</strong> à ${ageCible} ans.
-            ${mensuelNecessaire > 0 && mensuelNecessaire > epargne ? `Pour atteindre <strong>500 000 €</strong>, il faudrait épargner <strong>${this.formatCurrency(mensuelNecessaire)}/mois</strong>.` : mensuelNecessaire === 0 ? '🎉 Vous êtes en bonne voie pour dépasser 500 000 € !' : ''}
-        `;
-    },
-
     _emojiData: {
         '😀 Smileys': ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','🫠','😉','😊','😇','🥰','😍','🤩','😘','😗','☺️','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🫢','🫣','🤫','🤔','🫡','🤐','🤨','😐','😑','😶','🫥','😶‍🌫️','😏','😒','🙄','😬','😮‍💨','🤥','🫨','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','😵‍💫','🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','🫤','😟','🙁','☹️','😮','😯','😲','😳','🥺','🥹','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖'],
         '👋 Gestes': ['👋','🤚','🖐️','✋','🖖','🫱','🫲','🫳','🫴','🫷','🫸','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','🫵','👍','👎','✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦿','🦵','🦶','👂','🦻','👃','🫀','🫁','🧠','🦷','🦴','👀','👁️','👅','👄','🫦','👶','🧒','👦','👧','🧑','👱','👨','🧔','👩','🧓','👴','👵'],
@@ -9444,16 +9206,6 @@ const app = {
             }
         }
         document.getElementById('emojiPicker').classList.remove('open');
-    },
-
-    /* Legacy compat — ancien toggle outils (remplacé par openPeaPanel) */
-    togglePeaOutils() {
-        const card = document.getElementById('pea-outils-card');
-        const btn  = document.getElementById('btn-pea-outils-toggle');
-        if (!card) return;
-        const open = card.style.display !== 'none';
-        card.style.display = open ? 'none' : 'block';
-        if (btn) btn.textContent = open ? '🧮 Outils' : '✕ Outils';
     },
 
     switchPeaOutil(nom, el) {
@@ -10045,7 +9797,7 @@ const app = {
     closeBudgetHistoriqueComplet() {
         document.getElementById('budget-hist-complet-wrap')?.classList.remove('open');
         // Ferme overlay seulement si aucune autre modal ouverte
-        const anyOpen = ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','pea-panel']
+        const anyOpen = ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse']
             .some(mid => document.getElementById(mid)?.classList.contains('open'));
         if (!anyOpen) {
             document.getElementById('budget-modal-overlay')?.classList.remove('open');
@@ -10108,7 +9860,7 @@ const app = {
         if (e.target.id !== 'budget-modal-overlay') return;
         // Fix : ignore si le mousedown a commencé à l'intérieur d'une modal ouverte
         if (this._budgetMouseDownInside) return;
-        ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils'].forEach(id => {
+        ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils','modal-outil-projection','modal-outil-investir','modal-outil-perf'].forEach(id => {
             document.getElementById(id)?.classList.remove('open');
         });
         document.getElementById('budget-modal-overlay')?.classList.remove('open');

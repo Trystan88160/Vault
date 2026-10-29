@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh57">
+    <link rel="stylesheet" href="app.css?v=enh58">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -672,13 +672,55 @@
   </div>
   <div class="budget-modal-body">
     <div class="outils-grid">
-      <button class="outil-tile" onclick="app.choisirOutilPea('previsions')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(63,81,181,.12),rgba(124,77,255,.1))">📊</span><span><b>Prévisions</b><em>Combien vaudra mon PEA dans X ans ?</em></span><i>›</i></button>
-      <button class="outil-tile" onclick="app.choisirOutilPea('calculateur')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(0,200,83,.12),rgba(0,150,60,.08))">🧮</span><span><b>Calculateur d'ordre</b><em>Combien de parts acheter avec mon budget ?</em></span><i>›</i></button>
-      <button class="outil-tile" onclick="app.choisirOutilPea('retraite')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(255,152,0,.14),rgba(230,115,0,.08))">👴</span><span><b>Projection retraite</b><em>Quel capital j'aurai à la retraite ?</em></span><i>›</i></button>
-      <button class="outil-tile" onclick="app.choisirOutilPea('simulateur')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(244,67,54,.12),rgba(200,50,30,.08))">🎲</span><span><b>Simulateur « Et si… »</b><em>Et si j'épargnais plus, ou plus longtemps ?</em></span><i>›</i></button>
+      <button class="outil-tile" onclick="app.choisirOutilPea('projection')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(63,81,181,.12),rgba(124,77,255,.1))">📈</span><span><b>Projection</b><em>Combien vaudra mon PEA ? Combien verser pour mon objectif ?</em></span><i>›</i></button>
+      <button class="outil-tile" onclick="app.choisirOutilPea('investir')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(0,200,83,.12),rgba(0,150,60,.08))">🛒</span><span><b>Investir ce mois-ci</b><em>Quels ordres passer avec mon budget ?</em></span><i>›</i></button>
+      <button class="outil-tile" onclick="app.choisirOutilPea('perf')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(255,152,0,.14),rgba(230,115,0,.08))">🎯</span><span><b>Ma vraie performance</b><em>Combien mon PEA m'a vraiment rapporté, par an ?</em></span><i>›</i></button>
     </div>
     <p class="outils-note">Chaque outil a un bouton <b>❓ Aide</b> qui explique comment il marche.</p>
   </div>
+</div>
+
+<!-- OUTILS PEA -->
+<div class="budget-modal-box outil-box" id="modal-outil-projection" style="max-width:860px">
+  <div class="budget-modal-header">
+    <div class="budget-modal-header-left">
+      <div class="budget-modal-icon" style="background:linear-gradient(135deg,rgba(63,81,181,.12),rgba(124,77,255,.1))">📈</div>
+      <div><div class="budget-modal-title">Projection</div><div class="budget-modal-subtitle">Ton PEA dans le futur</div></div>
+    </div>
+    <div class="outil-head-btns">
+      <button class="outil-aide-btn" data-aide-for="projection" onclick="app.toggleOutilAide('projection')">❓ Aide</button>
+      <button class="budget-modal-close" onclick="app.closeBilanModal('modal-outil-projection')">✕</button>
+    </div>
+  </div>
+  <div class="budget-modal-body"><div class="outil-aide" id="outil-aide-projection"></div><div id="outil-projection-body"></div></div>
+</div>
+
+<div class="budget-modal-box outil-box" id="modal-outil-investir" style="max-width:760px">
+  <div class="budget-modal-header">
+    <div class="budget-modal-header-left">
+      <div class="budget-modal-icon" style="background:linear-gradient(135deg,rgba(0,200,83,.12),rgba(0,150,60,.08))">🛒</div>
+      <div><div class="budget-modal-title">Investir ce mois-ci</div><div class="budget-modal-subtitle">Les ordres à passer avec ton budget</div></div>
+    </div>
+    <div class="outil-head-btns">
+      <button class="outil-aide-btn" data-aide-for="investir" onclick="app.toggleOutilAide('investir')">❓ Aide</button>
+      <button class="budget-modal-close" onclick="app.closeBilanModal('modal-outil-investir')">✕</button>
+    </div>
+  </div>
+  <div class="budget-modal-body"><div class="outil-aide" id="outil-aide-investir"></div><div id="outil-investir-body"></div></div>
+</div>
+
+<div class="budget-modal-box outil-box" id="modal-outil-perf" style="max-width:720px">
+  <div class="budget-modal-header">
+    <div class="budget-modal-header-left">
+      <div class="budget-modal-icon" style="background:linear-gradient(135deg,rgba(255,152,0,.14),rgba(230,115,0,.08))">🎯</div>
+      <div><div class="budget-modal-title">Ma vraie performance</div><div class="budget-modal-subtitle">Ce que ton PEA t'a vraiment rapporté</div></div>
+    </div>
+    <div class="outil-head-btns">
+      <button class="outil-aide-btn" data-aide-for="perf" onclick="app.toggleOutilAide('perf')">❓ Aide</button>
+      <button class="budget-modal-close" onclick="app.closeBilanModal('modal-outil-perf')">✕</button>
+    </div>
+  </div>
+  <div class="budget-modal-body"><div class="outil-aide" id="outil-aide-perf"></div><div id="outil-perf-body"></div></div>
 </div>
 
 <!-- MODAL COMPARAISON -->
@@ -1020,118 +1062,7 @@
   </div>
 </div>
 
-<!-- Stubs compat : IDs anciens référencés dans app.js -->
-<div style="display:none">
-  <div id="pea-outils-card"></div>
-  <div id="pea-outil-previsions"></div>
-  <div id="pea-outil-calculateur"></div>
-  <div id="btn-pea-outils-toggle"></div>
-</div>
-<div data-card-id="pea-retraite"   data-tab="pea" style="display:none"></div>
-<div data-card-id="pea-simulateur" data-tab="pea" style="display:none"></div>
-
 </div><!-- fin tab-pea -->
-
-<!-- Panel PEA slide-in (HORS du tab pour éviter d'être collecté par applyLayout) -->
-<div class="pea-panel-overlay" id="pea-panel-overlay" onclick="app.closePeaPanel()"></div>
-<div class="pea-panel" id="pea-panel">
-  <div class="pea-panel-head">
-    <div>
-      <div class="pea-sec-label">PEA</div>
-      <div class="pea-panel-title" id="pea-panel-title">🧮 Outils PEA</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:.4rem">
-      <button class="outil-aide-btn" id="pea-panel-aide-btn" onclick="app.toggleOutilAide(app._peaPanelTab)">❓ Aide</button>
-      <button class="pea-panel-close" onclick="app.closePeaPanel()">✕</button>
-    </div>
-  </div>
-  <div class="pea-panel-body">
-
-    <!-- PRÉVISIONS -->
-    <div id="pea-panel-previsions">
-      <div class="outil-aide" id="outil-aide-previsions"></div>
-      <div style="display:flex;gap:.5rem;margin-bottom:1rem;align-items:center">
-        <select class="form-select" id="select-scenario" style="flex:1" onchange="app.chargerScenario()"><option value="">-- Nouveau scénario --</option></select>
-        <button class="btn btn-small" onclick="app.sauvegarderScenario()">💾</button>
-        <button class="btn btn-small btn-secondary" onclick="app.supprimerScenario()">🗑</button>
-      </div>
-      <div class="grid grid-2">
-        <div class="form-group"><label class="form-label">Nom du scénario</label><input type="text" class="form-input" id="prev-scenario-nom" placeholder="Mon scénario"></div>
-        <div class="form-group"><label class="form-label">Valeur actuelle (€)</label><input type="number" class="form-input" id="prev-pea-actuel" placeholder="0" step="0.01"></div>
-        <div class="form-group"><label class="form-label">Versement mensuel (€)</label><input type="number" class="form-input" id="prev-pea-mensuel" placeholder="400" step="10"></div>
-        <div class="form-group"><label class="form-label">Rendement annuel (%)</label><input type="number" class="form-input" id="prev-pea-taux" placeholder="8" step="0.1"></div>
-        <div class="form-group"><label class="form-label">Projection (années)</label><input type="number" class="form-input" id="prev-pea-annees" placeholder="10" min="1" max="50"></div>
-      </div>
-      <button class="btn" onclick="app.calculerPrevisionsPEA()">📊 Calculer</button>
-      <div id="prev-pea-results" style="display:none;margin-top:1.25rem">
-        <div class="grid grid-3 grid-stats" style="margin-bottom:1rem">
-          <div class="stat-card stat-card-main"><div class="stat-label">Objectif final</div><div class="stat-value" id="prev-pea-final">0 €</div></div>
-          <div class="stat-card stat-card-main"><div class="stat-label">Total versé</div><div class="stat-value" id="prev-pea-verse">0 €</div></div>
-          <div class="stat-card stat-card-main"><div class="stat-label">Gains espérés</div><div class="stat-value" id="prev-pea-gains">0 €</div></div>
-        </div>
-        <div style="display:flex;gap:.5rem;margin-bottom:.75rem">
-          <button class="btn btn-small" id="btn-vue-annee" onclick="app.switchVuePrevision('annee')">Vue Annuelle</button>
-          <button class="btn btn-small btn-secondary" id="btn-vue-mois" onclick="app.switchVuePrevision('mois')">Vue Mensuelle</button>
-        </div>
-        <div class="chart-container" style="height:260px">
-          <canvas id="chart-prev-compare"></canvas>
-          <button class="chart-color-btn" id="ccbtn-chart-prev-compare" onclick="app.openChartColorPicker('chart-prev-compare')" title="Personnaliser">🎨</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- CALCULATEUR -->
-    <div id="pea-panel-calculateur" style="display:none">
-      <div class="outil-aide" id="outil-aide-calculateur"></div>
-      <div style="display:flex;gap:.5rem;margin-bottom:1rem;align-items:center">
-        <select class="form-select" id="select-modele" style="flex:1" onchange="app.chargerModele()"><option value="">-- Nouveau modèle --</option></select>
-        <button class="btn btn-small" onclick="app.sauvegarderModele()">💾</button>
-        <button class="btn btn-small btn-secondary" onclick="app.supprimerModele()">🗑</button>
-      </div>
-      <div class="grid grid-2">
-        <div class="form-group"><label class="form-label">Nom du modèle</label><input type="text" class="form-input" id="calc-nom-modele" placeholder="Mon portefeuille"></div>
-        <div class="form-group"><label class="form-label">Budget (€)</label><input type="number" class="form-input" id="calc-budget" placeholder="1300" step="0.01" onchange="app.calculer()"></div>
-        <div class="form-group"><label class="form-label">Nombre de lignes</label><input type="number" class="form-input" id="calc-lignes" value="3" min="1" max="10" onchange="app.genererLignes()"></div>
-      </div>
-      <div class="table-container" style="margin-bottom:1rem">
-        <table class="table"><thead><tr><th>Action</th><th>Alloc %</th><th>Budget</th><th>Cours</th><th>Qté</th><th>Investi</th><th>Reste</th></tr></thead><tbody id="calc-body"></tbody></table>
-      </div>
-      <div class="grid grid-3 grid-stats" style="margin-bottom:1rem">
-        <div class="stat-card stat-card-main"><div class="stat-label">Budget</div><div class="stat-value" id="calc-total">0 €</div></div>
-        <div class="stat-card stat-card-main"><div class="stat-label">Investi</div><div class="stat-value" id="calc-investi">0 €</div></div>
-        <div class="stat-card stat-card-main"><div class="stat-label">Reste</div><div class="stat-value" id="calc-reste">0 €</div></div>
-      </div>
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-        <button class="btn btn-secondary btn-small" onclick="app.allocation('conservateur')">60/30/10 Conservateur</button>
-        <button class="btn btn-secondary btn-small" onclick="app.allocation('equilibre')">50/30/20 Équilibré</button>
-        <button class="btn btn-secondary btn-small" onclick="app.allocation('dynamique')">40/40/20 Dynamique</button>
-        <button class="btn btn-secondary btn-small" onclick="app.allocation('agressif')">30/30/40 Agressif</button>
-      </div>
-    </div>
-
-    <!-- RETRAITE -->
-    <div id="pea-panel-retraite" style="display:none">
-      <div style="text-align:center;padding:2rem 1rem;color:var(--text-tertiary)">
-        <div style="font-size:2.5rem;margin-bottom:.75rem">👴</div>
-        <div style="font-family:'Outfit',sans-serif;font-weight:700;font-size:1rem;margin-bottom:.5rem;color:var(--text-primary)">Projection Retraite</div>
-        <div style="font-size:.82rem;margin-bottom:1.25rem">Ouvre le simulateur pour calculer ton capital et ta rente estimée.</div>
-        <button class="btn" onclick="app.ouvrirModalRetraite()">Ouvrir le simulateur</button>
-      </div>
-    </div>
-
-    <!-- SIMULATEUR -->
-    <div id="pea-panel-simulateur" style="display:none">
-      <div style="text-align:center;padding:2rem 1rem;color:var(--text-tertiary)">
-        <div style="font-size:2.5rem;margin-bottom:.75rem">🎲</div>
-        <div style="font-family:'Outfit',sans-serif;font-weight:700;font-size:1rem;margin-bottom:.5rem;color:var(--text-primary)">Simulateur « Et si… »</div>
-        <div style="font-size:.82rem;margin-bottom:1.25rem">Simule différents scénarios de performance et de versements.</div>
-        <button class="btn" onclick="app.ouvrirModalSimulateur()">Ouvrir le simulateur</button>
-      </div>
-    </div>
-
-  </div>
-</div>
-
 
 <!-- Patrimoine -->
 <div id="tab-patrimoine" class="tab-content">
@@ -1357,7 +1288,7 @@
 </div>
 
 
-<script src="app.js?v=enh57" defer></script>
+<script src="app.js?v=enh58" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">
