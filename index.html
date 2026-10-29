@@ -10,7 +10,7 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@300;500;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,400;1,300;1,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="app.css?v=enh55">
+    <link rel="stylesheet" href="app.css?v=enh56">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
     <!-- PWA -->
@@ -661,6 +661,26 @@
   <div class="budget-modal-body" id="bl-rapport-body"></div>
 </div>
 
+<!-- MODAL OUTILS PEA -->
+<div class="budget-modal-box" id="modal-pea-outils" style="max-width:620px">
+  <div class="budget-modal-header">
+    <div class="budget-modal-header-left">
+      <div class="budget-modal-icon" style="background:linear-gradient(135deg,rgba(124,77,255,.12),rgba(63,81,181,.08))">🧮</div>
+      <div><div class="budget-modal-title">Outils PEA</div><div class="budget-modal-subtitle">Choisis l'outil qui répond à ta question</div></div>
+    </div>
+    <button class="budget-modal-close" onclick="app.closeBilanModal('modal-pea-outils')">✕</button>
+  </div>
+  <div class="budget-modal-body">
+    <div class="outils-grid">
+      <button class="outil-tile" onclick="app.choisirOutilPea('previsions')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(63,81,181,.12),rgba(124,77,255,.1))">📊</span><span><b>Prévisions</b><em>Combien vaudra mon PEA dans X ans ?</em></span><i>›</i></button>
+      <button class="outil-tile" onclick="app.choisirOutilPea('calculateur')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(0,200,83,.12),rgba(0,150,60,.08))">🧮</span><span><b>Calculateur d'ordre</b><em>Combien de parts acheter avec mon budget ?</em></span><i>›</i></button>
+      <button class="outil-tile" onclick="app.choisirOutilPea('retraite')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(255,152,0,.14),rgba(230,115,0,.08))">👴</span><span><b>Projection retraite</b><em>Quel capital j'aurai à la retraite ?</em></span><i>›</i></button>
+      <button class="outil-tile" onclick="app.choisirOutilPea('simulateur')"><span class="outil-ico" style="background:linear-gradient(135deg,rgba(244,67,54,.12),rgba(200,50,30,.08))">🎲</span><span><b>Simulateur « Et si… »</b><em>Et si j'épargnais plus, ou plus longtemps ?</em></span><i>›</i></button>
+    </div>
+    <p class="outils-note">Chaque outil a un bouton <b>❓ Aide</b> qui explique comment il marche.</p>
+  </div>
+</div>
+
 <!-- MODAL COMPARAISON -->
 <div class="budget-modal-box" id="modal-budget-comp">
   <div class="budget-modal-header">
@@ -837,32 +857,7 @@
   </div>
   <div class="pea-topbar-right">
     <div class="pea-outils-wrap" id="pea-outils-wrap">
-      <button class="pea-outils-btn" id="pea-outils-btn" onclick="app.togglePeaOutilsMenu()">
-        🧮 Outils <span class="pea-outils-chev">▾</span>
-      </button>
-      <div class="pea-outils-menu" id="pea-outils-menu">
-        <div class="pea-om-head">Choisissez un outil</div>
-        <div class="pea-om-item" onclick="app.openPeaPanel('previsions')">
-          <div class="pea-om-icon" style="background:linear-gradient(135deg,rgba(63,81,181,.1),rgba(124,77,255,.08))">📊</div>
-          <div><div class="pea-om-label">Prévisions</div><div class="pea-om-desc">Simulation de croissance</div></div>
-          <span class="pea-om-arrow">›</span>
-        </div>
-        <div class="pea-om-item" onclick="app.openPeaPanel('calculateur')">
-          <div class="pea-om-icon" style="background:linear-gradient(135deg,rgba(0,200,83,.1),rgba(0,150,60,.06))">🧮</div>
-          <div><div class="pea-om-label">Calculateur d'ordre</div><div class="pea-om-desc">Nombre de parts à acheter</div></div>
-          <span class="pea-om-arrow">›</span>
-        </div>
-        <div class="pea-om-item" onclick="app.openPeaPanel('retraite')">
-          <div class="pea-om-icon" style="background:linear-gradient(135deg,rgba(255,152,0,.1),rgba(230,115,0,.06))">👴</div>
-          <div><div class="pea-om-label">Projection retraite</div><div class="pea-om-desc">Capital & rente estimée</div></div>
-          <span class="pea-om-arrow">›</span>
-        </div>
-        <div class="pea-om-item" onclick="app.openPeaPanel('simulateur')">
-          <div class="pea-om-icon" style="background:linear-gradient(135deg,rgba(244,67,54,.1),rgba(200,50,30,.06))">🎲</div>
-          <div><div class="pea-om-label">Simulateur « Et si… »</div><div class="pea-om-desc">Scénarios alternatifs</div></div>
-          <span class="pea-om-arrow">›</span>
-        </div>
-      </div>
+      <button class="pea-outils-btn" id="pea-outils-btn" onclick="app.openPeaOutils()">🧮 Outils</button>
     </div>
     <button class="tab-customize-btn tab-help-btn" onclick="app.openHelp('pea')" title="Aide">❓</button>
   </div>
@@ -976,15 +971,10 @@
         <div class="pea-a2-value" id="pea-strip-investi">—</div>
         <div class="pea-a2-sub">Cumul versements</div>
       </div>
-      <div class="pea-a2-cell">
+      <div class="pea-a2-cell" style="border-right:none">
         <div class="pea-a2-label">Plus-value latente</div>
         <div class="pea-a2-value" id="pea-strip-gain">—</div>
         <span class="pea-a2-pill" id="pea-strip-pct">—</span>
-      </div>
-      <div class="pea-a2-cell" style="border-right:none">
-        <div class="pea-a2-label">Perf. annualisée</div>
-        <div class="pea-a2-value" id="pea-strip-perf">—</div>
-        <div class="pea-a2-sub" id="pea-strip-recul">—</div>
       </div>
     </div>
 
@@ -1050,18 +1040,16 @@
       <div class="pea-sec-label">PEA</div>
       <div class="pea-panel-title" id="pea-panel-title">🧮 Outils PEA</div>
     </div>
-    <button class="pea-panel-close" onclick="app.closePeaPanel()">✕</button>
-  </div>
-  <div class="pea-panel-tabs">
-    <button class="pea-panel-tab active" id="pea-ptab-previsions"  onclick="app.switchPeaPanelTab('previsions',this)">📊 Prévisions</button>
-    <button class="pea-panel-tab"        id="pea-ptab-calculateur" onclick="app.switchPeaPanelTab('calculateur',this)">🧮 Calculateur</button>
-    <button class="pea-panel-tab"        id="pea-ptab-retraite"    onclick="app.switchPeaPanelTab('retraite',this)">👴 Retraite</button>
-    <button class="pea-panel-tab"        id="pea-ptab-simulateur"  onclick="app.switchPeaPanelTab('simulateur',this)">🎲 Simulateur</button>
+    <div style="display:flex;align-items:center;gap:.4rem">
+      <button class="outil-aide-btn" id="pea-panel-aide-btn" onclick="app.toggleOutilAide(app._peaPanelTab)">❓ Aide</button>
+      <button class="pea-panel-close" onclick="app.closePeaPanel()">✕</button>
+    </div>
   </div>
   <div class="pea-panel-body">
 
     <!-- PRÉVISIONS -->
     <div id="pea-panel-previsions">
+      <div class="outil-aide" id="outil-aide-previsions"></div>
       <div style="display:flex;gap:.5rem;margin-bottom:1rem;align-items:center">
         <select class="form-select" id="select-scenario" style="flex:1" onchange="app.chargerScenario()"><option value="">-- Nouveau scénario --</option></select>
         <button class="btn btn-small" onclick="app.sauvegarderScenario()">💾</button>
@@ -1103,6 +1091,7 @@
 
     <!-- CALCULATEUR -->
     <div id="pea-panel-calculateur" style="display:none">
+      <div class="outil-aide" id="outil-aide-calculateur"></div>
       <div style="display:flex;gap:.5rem;margin-bottom:1rem;align-items:center">
         <select class="form-select" id="select-modele" style="flex:1" onchange="app.chargerModele()"><option value="">-- Nouveau modèle --</option></select>
         <button class="btn btn-small" onclick="app.sauvegarderModele()">💾</button>
@@ -1155,7 +1144,7 @@
 
 <!-- Patrimoine -->
 <div id="tab-patrimoine" class="tab-content">
-<div class="tab-customize-bar"><button class="tab-customize-btn" onclick="app.openTabCustomizer('patrimoine')">⚙️ Personnaliser l'onglet</button><button class="tab-customize-btn tab-help-btn" onclick="app.openHelp('patrimoine')" title="Aide">❓ Aide</button></div>
+<div class="tab-customize-bar"><button class="tab-customize-btn tab-help-btn" onclick="app.openHelp('patrimoine')" title="Aide">❓ Aide</button></div>
 
 <!-- ══ pat-stats : bloc glassmorphism complet ══ -->
 <div data-card-id="pat-stats" data-tab="patrimoine">
@@ -1260,7 +1249,7 @@
 
 <!-- Bilan -->
 <div id="tab-bilan" class="tab-content">
-<div class="tab-customize-bar"><button class="tab-customize-btn" onclick="app.openTabCustomizer('bilan')">⚙️ Personnaliser l'onglet</button><button class="tab-customize-btn tab-help-btn" onclick="app.openHelp('bilan')" title="Aide">❓ Aide</button></div>
+<div class="tab-customize-bar"><button class="tab-customize-btn tab-help-btn" onclick="app.openHelp('bilan')" title="Aide">❓ Aide</button></div>
 
 <!-- Ton année en un coup d'œil -->
 <div data-card-id="bilan-annuel" data-tab="bilan"><div id="bl-hero-tab"></div></div>
@@ -1377,7 +1366,7 @@
 </div>
 
 
-<script src="app.js?v=enh55" defer></script>
+<script src="app.js?v=enh56" defer></script>
 <!-- ── Bottom Sheet : Ajouter un revenu ─────────────────── -->
 <div id="bs-rev-overlay" class="bs-overlay" data-bs-close="app.closeBsRevenus()">
   <div class="bs-sheet">
