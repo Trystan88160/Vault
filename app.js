@@ -318,7 +318,7 @@ const app = {
         // Fermeture modales budget avec Échap
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
-                ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport'].forEach(id => {
+                ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils'].forEach(id => {
                     document.getElementById(id)?.classList.remove('open');
                 });
                 const ov = document.getElementById('budget-modal-overlay');
@@ -567,7 +567,7 @@ const app = {
             // budget-modal-overlay : contenu = les .budget-modal-box.open
             const openBudgetModal = ['modal-budget-comp','modal-budget-regle','modal-budget-rec',
                 'modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap',
-                'modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport']
+                'modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils']
                 .map(id => document.getElementById(id))
                 .find(el => el?.classList.contains('open'));
             this._budgetMouseDownInside = !!(openBudgetModal && openBudgetModal.contains(e.target));
@@ -1693,8 +1693,9 @@ const app = {
         }
         const h = this._simHorizon || 10;
         modal.innerHTML = `
-            <div class="modal-header"><h2 class="modal-title">🎲 Simulateur "Et si…"</h2></div>
+            <div class="modal-header outil-modal-head"><h2 class="modal-title">🎲 Simulateur "Et si…"</h2><button class="outil-aide-btn" data-aide-for="simulateur" onclick="app.toggleOutilAide('simulateur')">❓ Aide</button></div>
             <div class="modal-body">
+                <div class="outil-aide" id="outil-aide-simulateur"></div>
                 <div class="form-group" style="margin-bottom:1.25rem">
                     <label class="form-label">Si j'épargnais… par mois</label>
                     <div style="display:flex;align-items:center;gap:1rem">
@@ -2359,51 +2360,37 @@ const app = {
         pea: {
             title: '📈 PEA',
             body: `
-<p style="margin-bottom:.85rem;color:var(--text-secondary);font-size:.8rem">Suivi de ton Plan d'Épargne en Actions. Chaque carte dans l'ordre d'apparition.</p>
+<p style="margin-bottom:.85rem;color:var(--text-secondary);font-size:.8rem">Le suivi de ton Plan d'Épargne en Actions, de haut en bas.</p>
 <div style="display:flex;flex-direction:column;gap:.65rem">
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-primary)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-primary);font-weight:700;margin-bottom:.25rem">Stat-cards (Valeur · Investi · Gain/Perte)</div>
-    <p style="font-size:.79rem;margin:0"><strong>Valeur PEA :</strong> dernier solde total saisi.<br>
-    <strong>Total Investi :</strong> cumul de tes versements.<br>
-    <strong>Gain/Perte :</strong> Valeur − Investi. Positif = portefeuille dans le vert. La performance en % s'affiche juste en dessous.</p>
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-primary);font-weight:700;margin-bottom:.25rem">📈 Carte du haut</div>
+    <p style="font-size:.79rem;margin:0"><strong>Valeur :</strong> la dernière valeur de ton PEA que tu as saisie, et le total que tu as versé dessus.<br>
+    <strong>Plus-value :</strong> valeur − versements. <strong>Performance :</strong> cette plus-value en % de tes versements, depuis l'ouverture (ce n'est pas un rendement par an).<br>
+    <strong>Plafond utilisé :</strong> tes versements par rapport au plafond légal de 150 000 €.</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--success)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--success);font-weight:700;margin-bottom:.25rem">Mise à jour PEA</div>
-    <p style="font-size:.79rem;margin:0"><strong>Manuel :</strong> saisis la valeur totale du PEA + montant investi cumulé pour une date donnée.<br>
-    <strong>Import CSV :</strong> importe un fichier au format Date, Valeur, Investi pour alimenter l'historique en masse.</p>
-  </div>
-
-  <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-secondary)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-secondary);font-weight:700;margin-bottom:.25rem">📋 Lignes du Portefeuille & Plus-values</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on fait :</strong> ajoute chaque ligne (ETF, action) avec son ticker, nombre de parts et prix d'achat (PRU).<br>
-    <strong>Prix actuel :</strong> entre le prix actuel manuellement — la plus-value latente et la performance sont recalculées.</p>
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--success);font-weight:700;margin-bottom:.25rem">✏️ Mise à jour du portefeuille</div>
+    <p style="font-size:.79rem;margin:0"><strong>Saisie manuelle :</strong> entre la valeur totale du PEA et le total versé à une date donnée. Idéalement une fois par mois, toujours au même moment, pour que la courbe soit lisible.</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--warning)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--warning);font-weight:700;margin-bottom:.25rem">Évolution PEA : Valeur vs Investi</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> deux courbes superposées — la valeur de marché et le total investi mois par mois.<br>
-    <strong>À analyser :</strong> l'écart entre les deux courbes = ta plus-value latente. Les creux sont normaux sur le long terme.<br>
-    <strong>Boutons :</strong> 📊 Benchmark ajoute une courbe de référence (MSCI World). 🧮 Outils affiche des simulations.</p>
-  </div>
-
-  <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-primary)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-primary);font-weight:700;margin-bottom:.25rem">👴 Projection Retraite</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on fait :</strong> simule la valeur de ton PEA à l'âge de la retraite selon ton âge actuel, tes versements mensuels et un taux de rendement estimé.<br>
-    <strong>Utilité :</strong> visualise l'impact des intérêts composés sur le long terme et ajuste ta stratégie d'épargne en conséquence.</p>
-  </div>
-
-  <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--text-tertiary)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--text-tertiary);font-weight:700;margin-bottom:.25rem">🎲 Simulateur "Et si…"</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on fait :</strong> compare plusieurs scénarios d'épargne côte à côte — que se passe-t-il si tu verses 50€ de plus par mois, ou si le marché fait +5% au lieu de +7% ?<br>
-    <strong>Note :</strong> la performance affichée est la plus-value brute cumulée, pas un TRI annualisé.</p>
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--warning);font-weight:700;margin-bottom:.25rem">📈 Évolution du PEA</div>
+    <p style="font-size:.79rem;margin:0"><strong>La courbe pleine</strong> = la valeur, <strong>les pointillés</strong> = ce que tu as versé. L'écart entre les deux est ta plus-value : zone verte quand tu gagnes, rouge quand tu perds.<br>
+    <strong>Tout / 1 an / 6M :</strong> change la période affichée. <strong>🎨</strong> change les couleurs.<br>
+    Les chiffres au-dessus reprennent la valeur, les versements et la plus-value en € et en %.</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-secondary)">
     <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-secondary);font-weight:700;margin-bottom:.25rem">📋 Historique PEA</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> toutes tes saisies PEA classées par date (valeur + montant investi).<br>
-    <strong>Utilité :</strong> modifie ou supprime une entrée erronée directement depuis ce tableau.</p>
+    <p style="font-size:.79rem;margin:0">Toutes tes saisies classées par date. Clique sur le titre pour le déplier. Tu peux y ajouter une note à une saisie, ou supprimer une saisie erronée puis la ressaisir.</p>
+  </div>
+
+  <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--text-tertiary)">
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--text-tertiary);font-weight:700;margin-bottom:.25rem">🧮 Outils</div>
+    <p style="font-size:.79rem;margin:0">Le bouton <strong>🧮 Outils</strong> en haut ouvre une fenêtre pour choisir : <strong>Prévisions</strong> (valeur future de ton PEA), <strong>Calculateur d'ordre</strong> (combien de parts acheter), <strong>Projection retraite</strong> et <strong>Simulateur « Et si… »</strong>.<br>
+    Chaque outil a son propre bouton <strong>❓ Aide</strong> qui explique comment il marche.</p>
   </div>
 
 </div>`
@@ -2411,39 +2398,37 @@ const app = {
         patrimoine: {
             title: '🏦 Patrimoine',
             body: `
-<p style="margin-bottom:.85rem;color:var(--text-secondary);font-size:.8rem">Suivi mensuel de toute ta richesse nette. Chaque carte dans l'ordre d'apparition.</p>
+<p style="margin-bottom:.85rem;color:var(--text-secondary);font-size:.8rem">Toute ta richesse, compte par compte, de haut en bas.</p>
 <div style="display:flex;flex-direction:column;gap:.65rem">
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-primary)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-primary);font-weight:700;margin-bottom:.25rem">Stat-cards (Total · Épargne sécurisée · Investissements)</div>
-    <p style="font-size:.79rem;margin:0"><strong>Total :</strong> somme de tous tes comptes du dernier mois saisi.<br>
-    <strong>Épargne sécurisée :</strong> somme des comptes cochés 🛡️ (Livret A, LEP, CC…).<br>
-    <strong>Investissements :</strong> somme des comptes non cochés 🛡️ (PEA, CTO, immobilier…).</p>
-  </div>
-
-  <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-secondary)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-secondary);font-weight:700;margin-bottom:.25rem">Répartition du patrimoine</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> barre de répartition visuelle entre liquidités (🛡️) et investissements, avec les montants de chaque côté.<br>
-    <strong>À analyser :</strong> assure-toi d'avoir un fonds d'urgence suffisant (3 à 6 mois de dépenses) en liquidités avant de sur-investir.</p>
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-primary);font-weight:700;margin-bottom:.25rem">⚙ Comptes · ＋ Mettre à jour</div>
+    <p style="font-size:.79rem;margin:0"><strong>＋ Mettre à jour :</strong> saisis le solde de chacun de tes comptes à une date. Une fois par mois, au même moment (par exemple en début de mois), suffit.<br>
+    <strong>⚙ Comptes :</strong> ajoute, renomme ou supprime un compte, et coche 🛡️ ceux que tu peux utiliser tout de suite sans pénalité (Livret A, LEP, compte courant…).</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--success)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--success);font-weight:700;margin-bottom:.25rem">Mise à jour</div>
-    <p style="font-size:.79rem;margin:0"><strong>Quand saisir :</strong> idéalement en fin de mois, après tous tes virements.<br>
-    <strong>Comment :</strong> sélectionne une date, entre le solde de chaque compte, puis clique "+ Enregistrer".<br>
-    <strong>✦ Gérer les comptes :</strong> ajoute ou supprime des comptes. Coche 🛡️ sur les comptes liquides (disponibles immédiatement) — utilisé pour le calcul du fonds d'urgence dans les Alertes.</p>
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--success);font-weight:700;margin-bottom:.25rem">💰 Patrimoine total</div>
+    <p style="font-size:.79rem;margin:0">La somme de tous tes comptes au dernier relevé, et l'écart avec le relevé précédent.<br>
+    <strong>Répartition :</strong> la part en liquidités (comptes 🛡️) et la part investie (les autres : PEA, CTO…). <strong>Épargne</strong> et <strong>Investissements</strong> donnent les deux montants.<br>
+    <strong>À savoir :</strong> si aucun compte n'est coché 🛡️, tout compte comme investissement et l'épargne affiche 0 €.</p>
+  </div>
+
+  <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-secondary)">
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-secondary);font-weight:700;margin-bottom:.25rem">🏦 Comptes</div>
+    <p style="font-size:.79rem;margin:0">Le solde de chaque compte au dernier relevé, et sa part dans ton patrimoine total.</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--warning)">
-    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--warning);font-weight:700;margin-bottom:.25rem">Évolution du Patrimoine</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> courbe d'évolution du patrimoine total mois par mois.<br>
-    <strong>À analyser :</strong> la pente doit être positive sur le long terme. Un mois négatif peut venir d'une dépense exceptionnelle ou d'une baisse des marchés (PEA).</p>
+    <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--warning);font-weight:700;margin-bottom:.25rem">📈 Évolution du patrimoine</div>
+    <p style="font-size:.79rem;margin:0">La courbe de ton patrimoine relevé après relevé, avec en plus la part liquidités et la part investie. <strong>🎨</strong> change les couleurs.<br>
+    Une baisse ponctuelle vient souvent d'une grosse dépense ou d'une baisse de la bourse sur le PEA.</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--text-tertiary)">
     <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--text-tertiary);font-weight:700;margin-bottom:.25rem">📋 Historique Patrimoine</div>
-    <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> tableau de toutes tes saisies mensuelles, compte par compte, avec le total.<br>
-    <strong>Astuce :</strong> coche 🛡️ uniquement sur les comptes <strong>immédiatement disponibles</strong> sans pénalité. Cible fonds d'urgence : 3 à 6 mois de dépenses.</p>
+    <p style="font-size:.79rem;margin:0">Chaque relevé avec le détail par compte et l'écart avec le précédent. <strong>✕ supprimer</strong> efface un relevé erroné.<br>
+    <strong>Lien avec le Bilan :</strong> tes objectifs peuvent suivre un ou plusieurs comptes ; leur progression utilise le dernier relevé saisi ici.</p>
   </div>
 
 </div>`
@@ -2470,7 +2455,8 @@ const app = {
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--accent-secondary)">
     <div style="font-family:DM Mono,monospace;font-size:.65rem;text-transform:uppercase;color:var(--accent-secondary);font-weight:700;margin-bottom:.25rem">🎯 Objectifs</div>
     <p style="font-size:.79rem;margin:0"><strong>Ce qu'on voit :</strong> progression de chaque objectif et combien mettre de côté par mois pour tenir l'échéance.<br>
-    <strong>Suivi automatique :</strong> en créant ou modifiant un objectif (clique dessus), coche les comptes qui servent à l'atteindre (ex. Livret A) : la progression suit alors ton dernier relevé de patrimoine, sans rien saisir.</p>
+    <strong>Suivi automatique :</strong> en créant ou modifiant un objectif (clique dessus), coche les comptes qui servent à l'atteindre (ex. Livret A) : la progression suit alors ton dernier relevé de patrimoine, sans rien saisir.<br>
+    <strong>⚖ Répartir :</strong> si un compte sert à plusieurs objectifs, il est partagé à parts égales. Le bouton ⚖ Répartir permet de choisir la part de chacun, en % ou en €.</p>
   </div>
 
   <div style="background:var(--bg-card);border-radius:12px;padding:.85rem 1rem;border-left:3px solid var(--text-tertiary)">
@@ -5313,23 +5299,72 @@ const app = {
         setEl('pea-hero-sync-label', 'Mise à jour · ' + new Date(dernier.date).toLocaleDateString('fr-FR'));
     },
 
-    /* ── Dropdown outils PEA (budget-style) ── */
-    togglePeaOutilsMenu() {
-        const menu = document.getElementById('pea-outils-menu');
-        const btn  = document.getElementById('pea-outils-btn');
-        if (!menu || !btn) return;
-        const open = menu.classList.toggle('open');
-        btn.classList.toggle('open-state', open);
-        if (open) {
-            const close = (e) => {
-                if (!document.getElementById('pea-outils-wrap')?.contains(e.target)) {
-                    menu.classList.remove('open');
-                    btn.classList.remove('open-state');
-                    document.removeEventListener('click', close);
-                }
-            };
-            setTimeout(() => document.addEventListener('click', close), 10);
-        }
+    /* ── Outils PEA : fenêtre de choix + aide de chaque outil ── */
+    openPeaOutils() {
+        this._blOuvrirModal('modal-pea-outils');
+    },
+    togglePeaOutilsMenu() { this.openPeaOutils(); },
+
+    choisirOutilPea(outil) {
+        this.closeBilanModal('modal-pea-outils');
+        if (outil === 'retraite') this.ouvrirModalRetraite();
+        else if (outil === 'simulateur') this.ouvrirModalSimulateur();
+        else this.openPeaPanel(outil);
+    },
+
+    _outilAide: {
+        previsions: `
+<p><b>À quoi ça sert :</b> estimer ce que vaudra ton PEA dans quelques années si tu verses la même somme chaque mois.</p>
+<ol>
+  <li><b>Valeur actuelle</b> : déjà remplie avec ta dernière valeur PEA (tu peux la changer).</li>
+  <li><b>Versement mensuel</b> : ce que tu comptes ajouter chaque mois.</li>
+  <li><b>Rendement annuel</b> : la hausse moyenne espérée par an. Repère courant pour un ETF monde sur le long terme : 5 à 7 %, sans aucune garantie.</li>
+  <li><b>Projection</b> : le nombre d'années, puis « 📊 Calculer ».</li>
+</ol>
+<p><b>Résultat :</b> la valeur finale, le total versé (valeur actuelle + versements) et les gains, c'est-à-dire les intérêts composés. Le graphique se lit par année ou par mois.</p>
+<p><b>💾</b> enregistre le scénario pour le retrouver dans la liste, <b>🗑</b> le supprime.</p>
+<p class="outil-aide-limite">Le calcul suppose un rendement identique chaque mois : la bourse monte et descend, et il ne compte ni frais ni impôts.</p>`,
+        calculateur: `
+<p><b>À quoi ça sert :</b> savoir combien de parts acheter de chaque ETF ou action avec le budget que tu veux investir.</p>
+<ol>
+  <li><b>Budget</b> : la somme à investir ce mois-ci.</li>
+  <li><b>Nombre de lignes</b> : combien de titres différents tu achètes.</li>
+  <li>Pour chaque ligne : son nom, sa <b>part du budget en %</b> et son <b>cours</b> actuel (prix d'une part).</li>
+</ol>
+<p><b>Résultat :</b> pour chaque ligne, le budget qui lui revient, la <b>quantité</b> à acheter (arrondie à l'unité inférieure : on n'achète pas de fraction de part sur un PEA), le montant réellement investi et ce qui reste. Les totaux sont en bas.</p>
+<p><b>Boutons 60/30/10, 50/30/20…</b> : remplissent les % des 3 premières lignes avec une répartition type.</p>
+<p><b>💾</b> enregistre ton modèle (tes lignes et tes %) pour le recharger chaque mois.</p>
+<p class="outil-aide-limite">Vérifie que les % font 100 % au total, et mets le cours du jour juste avant de passer l'ordre.</p>`,
+        retraite: `
+<p><b>À quoi ça sert :</b> estimer le capital que tu pourrais avoir à l'âge de la retraite.</p>
+<p><b>Point de départ :</b> ton <b>patrimoine total</b> du dernier relevé (tous tes comptes, pas seulement le PEA).</p>
+<ol>
+  <li>Ton <b>âge actuel</b> et l'<b>âge cible</b> de la retraite.</li>
+  <li>L'<b>épargne mensuelle</b> que tu ajoutes chaque mois.</li>
+  <li>Le <b>rendement annuel moyen</b> espéré (6 % si tu ne mets rien).</li>
+</ol>
+<p><b>Résultat :</b> trois scénarios. <b>Réaliste</b> = ton rendement, <b>optimiste</b> = rendement + 2 points, <b>prudent</b> = rendement − 2 points. Le conseil indique combien épargner par mois pour atteindre 500 000 €.</p>
+<p class="outil-aide-limite">Les montants sont en euros d'aujourd'hui sans tenir compte de l'inflation : dans 30 ans, la même somme achètera moins. Ni frais ni impôts ne sont comptés.</p>`,
+        simulateur: `
+<p><b>À quoi ça sert :</b> voir d'un coup d'œil l'effet des intérêts composés, et comparer « et si je mettais plus » ou « et si j'attendais plus longtemps ».</p>
+<ol>
+  <li>Le curseur <b>épargne par mois</b> (de 50 à 2 000 €).</li>
+  <li>Le curseur <b>rendement annuel</b> (de 1 à 12 %).</li>
+  <li>La <b>durée</b> : 5, 10, 20 ou 30 ans.</li>
+</ol>
+<p><b>Résultat :</b> le capital final, ce que tu as versé, les intérêts gagnés, et par combien ta mise est multipliée. Tout se met à jour dès que tu bouges un curseur.</p>
+<p class="outil-aide-limite">Le simulateur part de zéro : il ne tient pas compte de ce que tu as déjà sur ton PEA (pour ça, utilise Prévisions).</p>`
+    },
+
+    toggleOutilAide(outil) {
+        const box = document.getElementById('outil-aide-' + outil);
+        if (!box) return;
+        if (!box.innerHTML.trim()) box.innerHTML = `<div class="outil-aide-titre">❓ Comment ça marche</div>${this._outilAide[outil] || ''}`;
+        const open = box.classList.toggle('open');
+        document.querySelectorAll(`[data-aide-for="${outil}"], #pea-panel-aide-btn`).forEach(b => {
+            if (b.id !== 'pea-panel-aide-btn' || this._peaPanelTab === outil) b.classList.toggle('on', open);
+        });
+        if (open) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     },
 
     /* ── Ouvre le panel slide-in sur un onglet donné ── */
@@ -5352,6 +5387,9 @@ const app = {
     },
 
     switchPeaPanelTab(name, el) {
+        this._peaPanelTab = name;
+        document.querySelectorAll('.pea-panel .outil-aide').forEach(b => b.classList.remove('open'));
+        document.getElementById('pea-panel-aide-btn')?.classList.remove('on');
         ['previsions', 'calculateur', 'retraite', 'simulateur'].forEach(t => {
             const p = document.getElementById('pea-panel-' + t);
             if (p) p.style.display = t === name ? 'block' : 'none';
@@ -6142,7 +6180,8 @@ const app = {
         const tab = document.getElementById('tab-' + tabId);
         if (!tab) return;
         const layout = this.data.cardLayout?.[tabId] || this._defaultLayout[tabId] || [];
-        const hidden = this.data.hiddenCards?.[tabId] || {};
+        // Patrimoine et Bilan n'ont plus de bouton « Personnaliser » : aucune carte ne doit y rester masquée
+        const hidden = ['patrimoine', 'bilan'].includes(tabId) ? {} : (this.data.hiddenCards?.[tabId] || {});
 
         // 1. Collecter les cartes DIRECTES de cet onglet (top-level ou dans un vault-layout-row)
         //    On cherche uniquement les enfants directs du tab, ou enfants directs d'un vault-layout-row enfant du tab
@@ -6777,31 +6816,22 @@ const app = {
 
         if (data.length > 0) {
             const dernier = data[data.length - 1];
-            const premier = data[0];
             const gain = dernier.valeur - dernier.investi;
             const pct  = dernier.investi > 0 ? ((gain / dernier.investi) * 100).toFixed(1) : 0;
             const isPos = gain >= 0;
             const dateLabel = new Date(dernier.date).toLocaleDateString('fr-FR', {month:'long', year:'numeric'});
 
-            // Perf annualisée
-            const mois = data.length;
-            const perfAnn = dernier.investi > 0 && mois > 0
-                ? (((dernier.valeur / premier.investi) ** (12 / mois) - 1) * 100).toFixed(1)
-                : '—';
 
             setEl('pea-strip-valeur', this.formatCurrency(dernier.valeur));
             setEl('pea-strip-date',   dateLabel);
             setEl('pea-strip-investi', this.formatCurrency(dernier.investi));
             setEl('pea-strip-gain',   (isPos ? '+' : '') + this.formatCurrency(gain));
             setEl('pea-strip-pct',    (isPos ? '▲ +' : '▼ ') + Math.abs(pct) + ' %');
-            setEl('pea-strip-perf',   (perfAnn !== '—' ? (parseFloat(perfAnn) >= 0 ? '+' : '') + perfAnn + ' %' : '—'));
-            setEl('pea-strip-recul',  mois > 1 ? 'Sur ' + mois + ' mois' : '—');
 
             setClass('pea-strip-gain', isPos ? 'pos' : 'neg');
-            setClass('pea-strip-perf', parseFloat(perfAnn) >= 0 ? 'pos' : 'neg');
             setPillClass('pea-strip-pct', isPos ? 'pos' : 'neg');
         } else {
-            ['pea-strip-valeur','pea-strip-date','pea-strip-investi','pea-strip-gain','pea-strip-pct','pea-strip-perf','pea-strip-recul']
+            ['pea-strip-valeur','pea-strip-date','pea-strip-investi','pea-strip-gain','pea-strip-pct']
                 .forEach(id => setEl(id, '—'));
         }
 
@@ -9162,8 +9192,9 @@ const app = {
             document.body.appendChild(modal);
         }
         modal.innerHTML = `
-            <div class="modal-header"><h2 class="modal-title">👴 Projection Retraite</h2></div>
+            <div class="modal-header outil-modal-head"><h2 class="modal-title">👴 Projection Retraite</h2><button class="outil-aide-btn" data-aide-for="retraite" onclick="app.toggleOutilAide('retraite')">❓ Aide</button></div>
             <div class="modal-body">
+                <div class="outil-aide" id="outil-aide-retraite"></div>
                 <div class="grid grid-2">
                     <div class="form-group">
                         <label class="form-label">Âge actuel</label>
@@ -10206,7 +10237,7 @@ const app = {
         if (e.target.id !== 'budget-modal-overlay') return;
         // Fix : ignore si le mousedown a commencé à l'intérieur d'une modal ouverte
         if (this._budgetMouseDownInside) return;
-        ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport'].forEach(id => {
+        ['modal-budget-comp','modal-budget-regle','modal-budget-rec','modal-budget-cashflow','modal-budget-analyse','budget-hist-complet-wrap','modal-all-cats','modal-emoji-cat','modal-cat-detail','modal-bilan-annuel','modal-bilan-rapport','modal-pea-outils'].forEach(id => {
             document.getElementById(id)?.classList.remove('open');
         });
         document.getElementById('budget-modal-overlay')?.classList.remove('open');
