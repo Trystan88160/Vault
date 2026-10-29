@@ -4725,11 +4725,11 @@ const app = {
         if (elDTaux) {
             if (taux12) {
                 elDTaux.textContent = taux12.taux.toFixed(0) + ' %';
-                elDTaux.style.color = taux12.taux >= 20 ? '#4ade80' : taux12.taux >= 10 ? '#fbbf24' : '#f87171';
+                elDTaux.style.color = taux12.taux >= 20 ? '#b9f6ca' : taux12.taux >= 10 ? '#ffe082' : '#ffcdd2';
                 if (elDTauxSub) elDTauxSub.textContent = 'moy. ' + taux12.nbMois + ' mois complets';
             } else {
                 elDTaux.textContent = '—';
-                elDTaux.style.color = 'rgba(255,255,255,.65)';
+                elDTaux.style.color = '';
                 if (elDTauxSub) elDTauxSub.textContent = 'saisir des revenus ou le salaire';
             }
         }
@@ -5960,6 +5960,43 @@ const app = {
         requestAnimationFrame(update);
     },
 
+    // Carte « Patrimoine net » du Dashboard : date du relevé, écart avec le précédent, tuiles du mois et du PEA
+    _refreshDashHero(total, pea) {
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        const pats = this._blPatrimoineTrie();
+        const dernier = pats[pats.length - 1], precedent = pats[pats.length - 2];
+        set('d-hero-mois', dernier ? ' · au ' + new Date((dernier.date || dernier.mois + '-01') + 'T12:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+        const delta = document.getElementById('d-hero-delta');
+        const sub = document.getElementById('d-hero-sub');
+        if (dernier && precedent && precedent.total) {
+            const diff = dernier.total - precedent.total;
+            const pct = diff / precedent.total * 100;
+            if (delta) { delta.style.display = ''; delta.textContent = `${diff >= 0 ? '▲' : '▼'} ${this._blSigne(diff)} · ${diff >= 0 ? '+' : '−'}${Math.abs(pct).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`; }
+            if (sub) sub.textContent = 'depuis le relevé du ' + new Date((precedent.date || precedent.mois + '-01') + 'T12:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+        } else {
+            if (delta) delta.style.display = 'none';
+            if (sub) sub.textContent = dernier ? 'premier relevé' : 'Ajoute un relevé dans l\'onglet Patrimoine';
+        }
+        const now = new Date();
+        const r = this.getRevenusMois(now.getFullYear(), now.getMonth());
+        const dep = this.getDepEffectives(now.getFullYear(), now.getMonth());
+        const solde = document.getElementById('d-hero-solde');
+        if (solde) {
+            solde.textContent = r.total > 0 ? this._blSigne(r.total - dep) : '−' + this._blEur(dep);
+            solde.style.color = r.total > 0 && r.total - dep < 0 ? '#ffcdd2' : '';
+        }
+        set('d-hero-solde-sub', `${this._blEur(dep)} dépensés${r.total > 0 && r.source !== 'reel' ? ' · revenu estimé' : ''}`);
+        if (pea) {
+            const pv = pea.valeur - (pea.investi || 0);
+            const pct = pea.investi > 0 ? pv / pea.investi * 100 : 0;
+            set('d-hero-pea', this._blEur(pea.valeur));
+            set('d-hero-pea-sub', `${pv >= 0 ? '+' : '−'}${this._blEur(Math.abs(pv))} · ${pct >= 0 ? '+' : '−'}${Math.abs(pct).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`);
+        } else {
+            set('d-hero-pea', '—');
+            set('d-hero-pea-sub', 'aucune saisie');
+        }
+    },
+
     refreshDashboard() {
         const patrimoineTotal = this.data.patrimoine.length > 0 ?
             [...this.data.patrimoine].sort((a, b) => { const mc = b.mois.localeCompare(a.mois); return mc !== 0 ? mc : (b.date||b.mois).localeCompare(a.date||a.mois); })[0].total : 0;
@@ -6002,6 +6039,7 @@ const app = {
             elem.className = 'stat-change ' + (diff >= 0 ? 'positive' : 'negative');
         }
 
+        this._refreshDashHero(patrimoineTotal, peaActuel);
         this.refreshRevenus();
 
         const wDep = document.getElementById('widget-dep-mois');
